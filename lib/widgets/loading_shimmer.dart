@@ -80,10 +80,10 @@ class ProductCardShimmer extends StatelessWidget {
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
+          Expanded(
             flex: 3,
             child: LoadingShimmer(
               width: double.infinity,
@@ -94,19 +94,19 @@ class ProductCardShimmer extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const LoadingShimmer(
+                  LoadingShimmer(
                     width: double.infinity,
                     height: 16,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
+                    children: [
                       LoadingShimmer(
                         width: 60,
                         height: 20,
@@ -173,21 +173,21 @@ class ConversationItemShimmer extends StatelessWidget {
         horizontal: 20,
         vertical: 12,
       ),
-      child: Row(
+      child: const Row(
         children: [
-          const LoadingShimmer(
+          LoadingShimmer(
             width: 60,
             height: 60,
             borderRadius: 8,
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
+                  children: [
                     LoadingShimmer(
                       width: 120,
                       height: 16,
@@ -198,13 +198,13 @@ class ConversationItemShimmer extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                const LoadingShimmer(
+                SizedBox(height: 8),
+                LoadingShimmer(
                   width: 80,
                   height: 14,
                 ),
-                const SizedBox(height: 8),
-                const LoadingShimmer(
+                SizedBox(height: 8),
+                LoadingShimmer(
                   width: 200,
                   height: 14,
                 ),

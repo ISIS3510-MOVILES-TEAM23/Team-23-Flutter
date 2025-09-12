@@ -211,7 +211,7 @@ class RatingBarIndicator extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '$totalRatings reviews',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -231,12 +231,12 @@ class RatingBarIndicator extends StatelessWidget {
               children: [
                 Text(
                   '$starCount',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(
+                const Icon(
                   Icons.star,
                   size: 16,
                   color: AppColors.accentColor,
@@ -266,7 +266,7 @@ class RatingBarIndicator extends StatelessWidget {
                   width: 30,
                   child: Text(
                     count.toString(),
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),

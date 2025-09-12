@@ -12,7 +12,7 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  List<Conversation> conversations = [];
+  List<Chat> conversations = [];
   bool isLoading = true;
 
   @override
@@ -23,7 +23,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Future<void> _loadConversations() async {
     try {
-      final convs = await MockService.getUserConversations('current_user');
+      final convs = await MockService.getUserChats('u_current');
       setState(() {
         conversations = convs;
         isLoading = false;
@@ -73,7 +73,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         color: AppColors.textSecondary.withOpacity(0.5),
                       ),
                       const SizedBox(height: 16),
-                      Text(
+                      const Text(
                         'No messages yet',
                         style: TextStyle(
                           fontSize: 18,
@@ -97,10 +97,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     itemCount: conversations.length,
                     itemBuilder: (context, index) {
                       final conversation = conversations[index];
-                      final otherPersonName = conversation.buyerId == 'current_user'
-                          ? conversation.sellerName
-                          : conversation.buyerName;
-                      final isUnread = conversation.unreadCount > 0;
+                      final otherPersonName = conversation.user1Id == 'u_current'
+                          ? conversation.user2Id
+                          : conversation.user1Id;
+                      final lastMessage = conversation.messages1.isNotEmpty ? conversation.messages1.last : null;
+                      final lastTime = lastMessage?.sentAt ?? DateTime.now();
+                      final isUnread = (lastMessage?.read == false) && (lastMessage?.receiverId == 'u_current');
                       
                       return InkWell(
                         onTap: () {
@@ -115,7 +117,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             color: isUnread
                                 ? AppColors.primaryColor.withOpacity(0.05)
                                 : null,
-                            border: Border(
+                            border: const Border(
                               bottom: BorderSide(
                                 color: AppColors.borderColor,
                                 width: 0.5,
@@ -133,7 +135,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(8),
                                       image: DecorationImage(
-                                        image: NetworkImage(conversation.productImage),
+                                        image: const NetworkImage('https://picsum.photos/seed/chat/100/100'),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -169,7 +171,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            conversation.productTitle,
+                                            otherPersonName,
                                             style: TextStyle(
                                               fontSize: 16,
                                               fontWeight: isUnread
@@ -181,7 +183,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                           ),
                                         ),
                                         Text(
-                                          _formatTime(conversation.updatedAt),
+                                          _formatTime(lastTime),
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: isUnread
@@ -193,53 +195,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      otherPersonName,
-                                      style: TextStyle(
+                                      lastMessage?.content ?? 'No messages',
+                                      style: const TextStyle(
                                         fontSize: 14,
                                         color: AppColors.textSecondary,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            conversation.lastMessage?.content ?? 'No messages',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: isUnread
-                                                  ? AppColors.textPrimary
-                                                  : AppColors.textSecondary,
-                                              fontWeight: isUnread
-                                                  ? FontWeight.w500
-                                                  : FontWeight.normal,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (isUnread)
-                                          Container(
-                                            margin: const EdgeInsets.only(left: 8),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primaryColor,
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            child: Text(
-                                              '${conversation.unreadCount}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
                                   ],
                                 ),
                               ),

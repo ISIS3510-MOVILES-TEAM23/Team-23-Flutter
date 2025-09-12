@@ -17,10 +17,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   User? currentUser;
-  List<Product> myProducts = [];
-  List<Product> myPurchases = [];
-  List<Product> myFavorites = [];
-  List<Product> pending = [];
+  List<Post> myProducts = [];
+  List<Post> myPurchases = [];
+  List<Post> myFavorites = [];
+  List<Post> pending = [];
   bool isLoading = true;
 
   @override
@@ -33,7 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   Future<void> _loadUserData() async {
     try {
       final user = await MockService.getCurrentUser();
-      final products = await MockService.getUserProducts(user.id);
+      final products = await MockService.getUserPosts(user.id);
       final purchases = await MockService.getUserPurchases(user.id);
       final favorites = await MockService.getUserFavorites(user.id);
       
@@ -79,9 +79,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 ),
               ),
               const SizedBox(height: 16),
-              TextField(
+              const TextField(
                 obscureText: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'New Password (optional)',
                   prefixIcon: Icon(Icons.lock),
                 ),
@@ -161,15 +161,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               children: [
                 CircleAvatar(
                   radius: 40,
-                  backgroundImage: currentUser?.profileImageUrl != null
-                      ? NetworkImage(currentUser!.profileImageUrl!)
-                      : null,
-                  child: currentUser?.profileImageUrl == null
-                      ? Text(
-                          currentUser?.name.substring(0, 2).toUpperCase() ?? 'UN',
-                          style: const TextStyle(fontSize: 24),
-                        )
-                      : null,
+                  child: Text(
+                    (currentUser?.name.isNotEmpty == true)
+                        ? currentUser!.name.substring(0, 2).toUpperCase()
+                        : 'UN',
+                    style: const TextStyle(fontSize: 24),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -186,65 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       const SizedBox(height: 4),
                       Text(
                         currentUser?.email ?? 'email@university.edu',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      if (currentUser?.isSeller == true) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.star,
-                                    size: 14,
-                                    color: AppColors.accentColor,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${currentUser?.rating ?? 0.0}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.info.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${currentUser?.totalSales ?? 0} sales',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      // Additional badges removed (not in new user model)
                     ],
                   ),
                 ),
@@ -261,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             padding: const EdgeInsets.symmetric(vertical: 16),
             decoration: BoxDecoration(
               color: Theme.of(context).cardTheme.color,
-              border: Border(
+              border: const Border(
                 top: BorderSide(color: AppColors.borderColor),
                 bottom: BorderSide(color: AppColors.borderColor),
               ),
@@ -281,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).cardTheme.color,
-              border: Border(
+              border: const Border(
                 bottom: BorderSide(color: AppColors.borderColor),
               ),
             ),
@@ -336,7 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
             color: AppColors.textSecondary,
           ),
@@ -345,7 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildProductGrid(List<Product> products, String emptyMessage) {
+  Widget _buildProductGrid(List<Post> products, String emptyMessage) {
     if (products.isEmpty) {
       return Center(
         child: Column(
@@ -359,7 +303,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             const SizedBox(height: 16),
             Text(
               emptyMessage,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 16,
                 color: AppColors.textSecondary,
               ),

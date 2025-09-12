@@ -1,135 +1,113 @@
 import '../models/models.dart';
 
 class MockService {
-  static Future<List<Product>> getHighlightedProducts() async {
+  static Future<List<Post>> getHighlightedPosts() async {
     await Future.delayed(const Duration(milliseconds: 500));
     return [
-      Product(
+      Post(
         id: 'h1',
         title: 'MacBook Pro M2',
         description: 'Excellent condition MacBook Pro with M2 chip, 16GB RAM',
-        price: 1200.00,
+        price: 120000, // integer price
         images: ['https://picsum.photos/seed/macbook/400/400'],
-        categoryId: 'electronics',
-        sellerId: 'user1',
-        sellerName: 'Carlos Mendoza',
-        condition: 'like_new',
+        status: 'active',
+        userId: 'user/u1',
+        subCategoryId: 'category/electronics/sub_category/laptops',
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        isFeatured: true,
-        views: 245,
       ),
-      Product(
+      Post(
         id: 'h2',
         title: 'Calculus Textbook',
         description: 'Stewart Calculus 8th Edition, some highlights but good condition',
-        price: 45.00,
+        price: 4500,
         images: ['https://picsum.photos/seed/calc/400/400'],
-        categoryId: 'books',
-        sellerId: 'user2',
-        sellerName: 'Maria García',
-        condition: 'good',
+        status: 'active',
+        userId: 'user/u2',
+        subCategoryId: 'category/books/sub_category/textbooks',
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        isFeatured: true,
-        views: 89,
       ),
-      Product(
+      Post(
         id: 'h3',
         title: 'Dorm Mini Fridge',
         description: 'Compact refrigerator perfect for dorm rooms',
-        price: 80.00,
+        price: 8000,
         images: ['https://picsum.photos/seed/fridge/400/400'],
-        categoryId: 'appliances',
-        sellerId: 'user3',
-        sellerName: 'Luis Rodriguez',
-        condition: 'good',
+        status: 'active',
+        userId: 'user/u3',
+        subCategoryId: 'category/appliances/sub_category/fridge',
         createdAt: DateTime.now().subtract(const Duration(hours: 12)),
-        isFeatured: true,
-        views: 156,
       ),
-      Product(
+      Post(
         id: 'h4',
         title: 'Nike Air Max 90',
         description: 'Size 10, worn twice, original box included',
-        price: 95.00,
+        price: 9500,
         images: ['https://picsum.photos/seed/nike/400/400'],
-        categoryId: 'clothing',
-        sellerId: 'user4',
-        sellerName: 'Ana Silva',
-        condition: 'like_new',
+        status: 'active',
+        userId: 'user/u4',
+        subCategoryId: 'category/clothing/sub_category/shoes',
         createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        isFeatured: true,
-        views: 302,
       ),
     ];
   }
 
-  static Future<List<Product>> getNewProducts() async {
+  static Future<List<Post>> getNewPosts() async {
     await Future.delayed(const Duration(milliseconds: 500));
     return [
-      Product(
+      Post(
         id: 'n1',
         title: 'Physics Lab Equipment Set',
         description: 'Complete set for Physics 101 lab, includes all required tools',
-        price: 65.00,
+        price: 6500,
         images: ['https://picsum.photos/seed/physics/400/400'],
-        categoryId: 'school',
-        sellerId: 'user5',
-        sellerName: 'Pedro Jiménez',
-        condition: 'good',
+        status: 'active',
+        userId: 'user/u5',
+        subCategoryId: 'category/school/sub_category/lab',
         createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-        views: 12,
       ),
-      Product(
+      Post(
         id: 'n2',
         title: 'Study Desk with Chair',
         description: 'Ergonomic desk and chair combo, perfect for long study sessions',
-        price: 150.00,
+        price: 15000,
         images: ['https://picsum.photos/seed/desk/400/400'],
-        categoryId: 'furniture',
-        sellerId: 'user6',
-        sellerName: 'Sofia Martinez',
-        condition: 'good',
+        status: 'active',
+        userId: 'user/u6',
+        subCategoryId: 'category/furniture/sub_category/desk',
         createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-        views: 34,
       ),
-      Product(
+      Post(
         id: 'n3',
         title: 'TI-84 Calculator',
         description: 'Graphing calculator required for engineering courses',
-        price: 70.00,
+        price: 7000,
         images: ['https://picsum.photos/seed/calc84/400/400'],
-        categoryId: 'electronics',
-        sellerId: 'user7',
-        sellerName: 'Diego Herrera',
-        condition: 'like_new',
+        status: 'active',
+        userId: 'user/u7',
+        subCategoryId: 'category/electronics/sub_category/calculators',
         createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-        views: 67,
       ),
-      Product(
+      Post(
         id: 'n4',
         title: 'Organic Chemistry Model Kit',
         description: 'Molecular model kit for chemistry students',
-        price: 25.00,
+        price: 2500,
         images: ['https://picsum.photos/seed/chem/400/400'],
-        categoryId: 'school',
-        sellerId: 'user8',
-        sellerName: 'Laura Perez',
-        condition: 'new',
+        status: 'active',
+        userId: 'user/u8',
+        subCategoryId: 'category/school/sub_category/chemistry',
         createdAt: DateTime.now().subtract(const Duration(hours: 10)),
-        views: 45,
       ),
-      Product(
+      Post(
         id: 'n5',
         title: 'Acoustic Guitar',
         description: 'Yamaha acoustic guitar, great for beginners',
-        price: 120.00,
+        price: 12000,
         images: ['https://picsum.photos/seed/guitar/400/400'],
-        categoryId: 'music',
-        sellerId: 'user9',
-        sellerName: 'Roberto Vargas',
-        condition: 'good',
+        status: 'active',
+        userId: 'user/u9',
+        subCategoryId: 'category/music/sub_category/instruments',
         createdAt: DateTime.now().subtract(const Duration(hours: 15)),
-        views: 91,
       ),
     ];
   }
@@ -137,38 +115,43 @@ class MockService {
   static Future<List<Category>> getCategories() async {
     await Future.delayed(const Duration(milliseconds: 300));
     return [
-      const Category(id: 'electronics', name: 'Electronics', icon: '💻'),
-      const Category(id: 'books', name: 'Books', icon: '📚'),
-      const Category(id: 'clothing', name: 'Clothing', icon: '👕'),
-      const Category(id: 'furniture', name: 'Furniture', icon: '🪑'),
-      const Category(id: 'school', name: 'School Supplies', icon: '✏️'),
-      const Category(id: 'appliances', name: 'Appliances', icon: '🔌'),
-      const Category(id: 'sports', name: 'Sports', icon: '⚽'),
-      const Category(id: 'music', name: 'Music', icon: '🎵'),
+      const Category(id: 'electronics', name: 'Electronics', description: 'Devices and gadgets'),
+      const Category(id: 'books', name: 'Books', description: 'Textbooks, novels, academic material'),
+      const Category(id: 'clothing', name: 'Clothing', description: 'Apparel and accessories'),
+      const Category(id: 'furniture', name: 'Furniture', description: 'Home and dorm furniture'),
+      const Category(id: 'school', name: 'School Supplies', description: 'Materials for classes'),
+      const Category(id: 'appliances', name: 'Appliances', description: 'Home appliances'),
+      const Category(id: 'sports', name: 'Sports', description: 'Sports and outdoors'),
+      const Category(id: 'music', name: 'Music', description: 'Music instruments and gear'),
     ];
   }
 
-  static Future<List<Product>> getProductsByCategory(String categoryId, {FilterOptions? filters}) async {
+  static Future<List<Post>> getPostsByCategory(String categoryId, {FilterOptions? filters}) async {
     await Future.delayed(const Duration(milliseconds: 500));
     
     // Simulamos productos por categoría
     final allProducts = [
-      ...await getHighlightedProducts(),
-      ...await getNewProducts(),
+      ...await getHighlightedPosts(),
+      ...await getNewPosts(),
     ];
     
-    var filtered = allProducts.where((p) => p.categoryId == categoryId).toList();
+    var filtered = allProducts.where((p) => p.subCategoryId.startsWith('category/$categoryId')).toList();
     
     // Aplicar filtros
     if (filters != null) {
-      if (filters.minPrice != null) {
-        filtered = filtered.where((p) => p.price >= filters.minPrice!).toList();
+      // UI provides price in dollars; backend uses integer price (e.g., cents)
+      final int? minCents = filters.minPrice != null
+          ? (filters.minPrice! * 100).round()
+          : null;
+      final int? maxCents = filters.maxPrice != null
+          ? (filters.maxPrice! * 100).round()
+          : null;
+
+      if (minCents != null) {
+        filtered = filtered.where((p) => p.price >= minCents).toList();
       }
-      if (filters.maxPrice != null) {
-        filtered = filtered.where((p) => p.price <= filters.maxPrice!).toList();
-      }
-      if (filters.condition != null) {
-        filtered = filtered.where((p) => p.condition == filters.condition).toList();
+      if (maxCents != null) {
+        filtered = filtered.where((p) => p.price <= maxCents).toList();
       }
       
       // Ordenar
@@ -183,9 +166,6 @@ class MockService {
           case 'newest':
             filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             break;
-          case 'popular':
-            filtered.sort((a, b) => b.views.compareTo(a.views));
-            break;
         }
       }
     }
@@ -193,15 +173,15 @@ class MockService {
     return filtered;
   }
 
-  static Future<Product?> getProductById(String productId) async {
+  static Future<Post?> getPostById(String postId) async {
     await Future.delayed(const Duration(milliseconds: 300));
     final allProducts = [
-      ...await getHighlightedProducts(),
-      ...await getNewProducts(),
+      ...await getHighlightedPosts(),
+      ...await getNewPosts(),
     ];
     
     try {
-      return allProducts.firstWhere((p) => p.id == productId);
+      return allProducts.firstWhere((p) => p.id == postId);
     } catch (e) {
       return null;
     }
@@ -209,169 +189,211 @@ class MockService {
 
   static Future<User> getCurrentUser() async {
     await Future.delayed(const Duration(milliseconds: 300));
-    return const User(
-      id: 'current_user',
+    return User(
+      id: 'u_current',
       name: 'Juan Pérez',
+      contactPreferences: 'push',
       email: 'juan.perez@university.edu',
-      profileImageUrl: 'https://picsum.photos/seed/user/200/200',
-      isSeller: true,
-      rating: 4.8,
-      totalSales: 15,
+      password: 'hashed_password',
+      role: 'student',
+      createdAt: DateTime.now().subtract(const Duration(days: 10)),
     );
   }
 
-  static Future<List<Product>> getUserProducts(String userId) async {
+  static Future<User> getUserById(String userId) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    // Very simple mock directory
+    final Map<String, User> users = {
+      'user/u1': User(
+        id: 'u1',
+        name: 'Carlos Mendoza',
+        contactPreferences: 'push',
+        email: 'carlos@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 100)),
+      ),
+      'user/u2': User(
+        id: 'u2',
+        name: 'Maria García',
+        contactPreferences: 'email',
+        email: 'maria@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 80)),
+      ),
+      'user/u3': User(
+        id: 'u3',
+        name: 'Luis Rodriguez',
+        contactPreferences: 'push',
+        email: 'luis@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 60)),
+      ),
+      'user/u4': User(
+        id: 'u4',
+        name: 'Ana Silva',
+        contactPreferences: 'sms',
+        email: 'ana@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 40)),
+      ),
+      'user/u_current': User(
+        id: 'u_current',
+        name: 'Juan Pérez',
+        contactPreferences: 'push',
+        email: 'juan.perez@university.edu',
+        password: 'hashed_password',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 10)),
+      ),
+    };
+    return users[userId] ?? User(
+      id: userId.split('/').last,
+      name: userId,
+      contactPreferences: 'push',
+      email: 'user@university.edu',
+      password: 'hashed',
+      role: 'student',
+      createdAt: DateTime.now().subtract(const Duration(days: 1)),
+    );
+  }
+
+  static Future<List<Post>> getUserPosts(String userId) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return [
-      Product(
+      Post(
         id: 'up1',
         title: 'iPhone 13',
         description: 'Perfect condition, includes charger and case',
-        price: 650.00,
+        price: 65000,
         images: ['https://picsum.photos/seed/iphone/400/400'],
-        categoryId: 'electronics',
-        sellerId: userId,
-        sellerName: 'Juan Pérez',
-        condition: 'like_new',
+        status: 'active',
+        userId: 'user/$userId',
+        subCategoryId: 'category/electronics/sub_category/phones',
         createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        views: 432,
       ),
-      Product(
+      Post(
         id: 'up2',
         title: 'Statistics Textbook',
         description: 'Required for STAT 201, minimal highlighting',
-        price: 35.00,
+        price: 3500,
         images: ['https://picsum.photos/seed/stats/400/400'],
-        categoryId: 'books',
-        sellerId: userId,
-        sellerName: 'Juan Pérez',
-        condition: 'good',
+        status: 'active',
+        userId: 'user/$userId',
+        subCategoryId: 'category/books/sub_category/textbooks',
         createdAt: DateTime.now().subtract(const Duration(days: 7)),
-        views: 156,
       ),
     ];
   }
 
-  static Future<List<Product>> getUserPurchases(String userId) async {
+  static Future<List<Post>> getUserPurchases(String userId) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return [
-      Product(
+      Post(
         id: 'p1',
         title: 'Laptop Stand',
         description: 'Adjustable aluminum laptop stand',
-        price: 25.00,
+        price: 2500,
         images: ['https://picsum.photos/seed/stand/400/400'],
-        categoryId: 'electronics',
-        sellerId: 'user10',
-        sellerName: 'Miguel Torres',
-        condition: 'new',
+        status: 'sold',
+        userId: 'user/u10',
+        subCategoryId: 'category/electronics/sub_category/accessories',
         createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        isAvailable: false,
       ),
     ];
   }
 
-  static Future<List<Product>> getUserFavorites(String userId) async {
+  static Future<List<Post>> getUserFavorites(String userId) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    final highlighted = await getHighlightedProducts();
+    final highlighted = await getHighlightedPosts();
     return highlighted.take(2).toList();
   }
 
-  static Future<List<Conversation>> getUserConversations(String userId) async {
+  static Future<List<Chat>> getUserChats(String userId) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return [
-      Conversation(
-        id: 'conv1',
-        productId: 'h1',
-        productTitle: 'MacBook Pro M2',
-        productImage: 'https://picsum.photos/seed/macbook/100/100',
-        buyerId: 'buyer1',
-        buyerName: 'Andrea López',
-        sellerId: userId,
-        sellerName: 'Juan Pérez',
-        lastMessage: Message(
-          id: 'm1',
-          conversationId: 'conv1',
-          senderId: 'buyer1',
-          receiverId: userId,
-          content: '¿Sigue disponible?',
-          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-        ),
-        updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        unreadCount: 1,
+      Chat(
+        id: 'chat1',
+        user1Id: userId,
+        user2Id: 'u789',
+        messages1: [
+          ChatMessage(
+            id: 'm101',
+            senderId: userId,
+            receiverId: 'u789',
+            postId: 'post/h1',
+            content: 'Is this book still available?',
+            sentAt: DateTime.now().subtract(const Duration(hours: 2)),
+            read: true,
+          ),
+        ],
       ),
-      Conversation(
-        id: 'conv2',
-        productId: 'h2',
-        productTitle: 'Calculus Textbook',
-        productImage: 'https://picsum.photos/seed/calc/100/100',
-        buyerId: userId,
-        buyerName: 'Juan Pérez',
-        sellerId: 'seller2',
-        sellerName: 'Maria García',
-        lastMessage: Message(
-          id: 'm2',
-          conversationId: 'conv2',
-          senderId: 'seller2',
-          receiverId: userId,
-          content: 'Sí, podemos vernos mañana',
-          timestamp: DateTime.now().subtract(const Duration(hours: 5)),
-          isRead: true,
-        ),
-        updatedAt: DateTime.now().subtract(const Duration(hours: 5)),
-        unreadCount: 0,
+      Chat(
+        id: 'chat2',
+        user1Id: 'u222',
+        user2Id: userId,
+        messages1: [
+          ChatMessage(
+            id: 'm102',
+            senderId: 'u222',
+            receiverId: userId,
+            content: 'Sí, podemos vernos mañana',
+            sentAt: DateTime.now().subtract(const Duration(hours: 5)),
+            read: true,
+          ),
+        ],
       ),
     ];
   }
 
-  static Future<List<Message>> getConversationMessages(String conversationId) async {
+  static Future<List<ChatMessage>> getChatMessages(String chatId) async {
     await Future.delayed(const Duration(milliseconds: 300));
     return [
-      Message(
+      ChatMessage(
         id: 'm1',
-        conversationId: conversationId,
         senderId: 'buyer1',
-        receiverId: 'current_user',
+        receiverId: 'u_current',
         content: 'Hola, me interesa el producto',
-        timestamp: DateTime.now().subtract(const Duration(hours: 3)),
-        isRead: true,
+        sentAt: DateTime.now().subtract(const Duration(hours: 3)),
+        read: true,
       ),
-      Message(
+      ChatMessage(
         id: 'm2',
-        conversationId: conversationId,
-        senderId: 'current_user',
+        senderId: 'u_current',
         receiverId: 'buyer1',
         content: 'Hola! Sí, está disponible',
-        timestamp: DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
-        isRead: true,
+        sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
+        read: true,
       ),
-      Message(
+      ChatMessage(
         id: 'm3',
-        conversationId: conversationId,
         senderId: 'buyer1',
-        receiverId: 'current_user',
+        receiverId: 'u_current',
         content: '¿Sigue disponible?',
-        timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-        isRead: false,
+        sentAt: DateTime.now().subtract(const Duration(hours: 2)),
+        read: false,
       ),
     ];
   }
 
-  static Future<bool> createProduct(Map<String, dynamic> productData) async {
+  static Future<bool> createPost(Map<String, dynamic> postData) async {
     await Future.delayed(const Duration(seconds: 1));
     // Simular guardado exitoso
     return true;
   }
 
-  static Future<bool> sendMessage(String conversationId, String content) async {
+  static Future<bool> sendMessage(String chatId, String content) async {
     await Future.delayed(const Duration(milliseconds: 500));
     // Simular envío exitoso
     return true;
   }
 
-  static Future<String> createConversation(String productId, String sellerId) async {
+  static Future<String> createChat(String postId, String otherUserId) async {
     await Future.delayed(const Duration(milliseconds: 500));
     // Retornar ID de conversación simulado
-    return 'conv_${DateTime.now().millisecondsSinceEpoch}';
+    return 'chat_${DateTime.now().millisecondsSinceEpoch}';
   }
 }

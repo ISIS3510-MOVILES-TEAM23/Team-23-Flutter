@@ -68,7 +68,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
       child: Row(
         children: [
           const SizedBox(width: 16),
-          Icon(
+          const Icon(
             Icons.search,
             color: AppColors.textSecondary,
             size: 20,
@@ -81,7 +81,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
               onSubmitted: widget.onSubmitted,
               decoration: InputDecoration(
                 hintText: widget.hintText,
-                hintStyle: TextStyle(
+                hintStyle: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 14,
                 ),
@@ -93,7 +93,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
           ),
           if (_hasText)
             IconButton(
-              icon: Icon(
+              icon: const Icon(
                 Icons.clear,
                 color: AppColors.textSecondary,
                 size: 20,
@@ -114,7 +114,7 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
             ),
           if (widget.showFilter)
             IconButton(
-              icon: Icon(
+              icon: const Icon(
                 Icons.tune,
                 color: AppColors.primaryColor,
                 size: 20,

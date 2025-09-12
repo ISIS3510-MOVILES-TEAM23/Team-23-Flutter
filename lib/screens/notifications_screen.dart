@@ -166,7 +166,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     color: AppColors.textSecondary.withOpacity(0.5),
                   ),
                   const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     'No notifications',
                     style: TextStyle(
                       fontSize: 18,
@@ -225,7 +225,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         color: notification.isRead
                             ? null
                             : AppColors.primaryColor.withOpacity(0.05),
-                        border: Border(
+                        border: const Border(
                           bottom: BorderSide(
                             color: AppColors.borderColor,
                             width: 0.5,
@@ -272,7 +272,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       Container(
                                         width: 8,
                                         height: 8,
-                                        decoration: BoxDecoration(
+                                        decoration: const BoxDecoration(
                                           color: AppColors.primaryColor,
                                           shape: BoxShape.circle,
                                         ),
@@ -282,7 +282,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   notification.message,
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 14,
                                     color: AppColors.textSecondary,
                                   ),

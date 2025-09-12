@@ -1,33 +1,43 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Colores principales de la marca
-  static const Color primaryColor = Color(0xFF6366F1); // Indigo
-  static const Color primaryLight = Color(0xFF818CF8);
-  static const Color primaryDark = Color(0xFF4F46E5);
-  
-  // Colores secundarios
-  static const Color secondaryColor = Color(0xFF10B981); // Green
-  static const Color accentColor = Color(0xFFF59E0B); // Amber
-  
-  // Colores neutros
-  static const Color backgroundLight = Color(0xFFF9FAFB);
-  static const Color backgroundDark = Color(0xFF111827);
+  // Brand palette
+  // Deep Navy — #0e172a
+  static const Color deepNavy = Color(0xFF0E172A);
+  // Teal Blue — #0b7593
+  static const Color tealBlue = Color(0xFF0B7593);
+  // University Gold — #eab308
+  static const Color universityGold = Color(0xFFEAB308);
+  // Off-White — #fafafa
+  static const Color offWhite = Color(0xFFFAFAFA);
+
+  // Primary/secondary mapping for app usage
+  // We use Gold for primary actions (buttons, highlights)
+  static const Color primaryColor = universityGold;
+  // Teal as secondary/info
+  static const Color secondaryColor = tealBlue;
+  // Accent mirrors primary for consistency
+  static const Color accentColor = universityGold;
+
+  // Neutrals and surfaces
+  static const Color backgroundLight = offWhite;
+  static const Color backgroundDark = deepNavy;
   static const Color surfaceLight = Colors.white;
-  static const Color surfaceDark = Color(0xFF1F2937);
-  
-  // Colores de texto
-  static const Color textPrimary = Color(0xFF111827);
-  static const Color textSecondary = Color(0xFF6B7280);
+  // Slightly lighter than deep navy for surfaces in dark mode
+  static const Color surfaceDark = Color(0xFF142033);
+
+  // Text colors
+  static const Color textPrimary = deepNavy;
+  static const Color textSecondary = Color(0xFF6B7280); // neutral grey for secondary text
   static const Color textLight = Colors.white;
-  
-  // Colores de estado
-  static const Color success = Color(0xFF10B981);
+
+  // State colors
+  static const Color success = Color(0xFF10B981); // keep green for success
   static const Color error = Color(0xFFEF4444);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color info = Color(0xFF3B82F6);
-  
-  // Bordes y divisores
+  static const Color warning = universityGold; // use brand gold for warnings/badges when needed
+  static const Color info = tealBlue; // teal for info states
+
+  // Borders/dividers
   static const Color borderColor = Color(0xFFE5E7EB);
   static const Color dividerColor = Color(0xFFF3F4F6);
 }
@@ -44,15 +54,17 @@ class AppTheme {
       surface: AppColors.surfaceLight,
       background: AppColors.backgroundLight,
       error: AppColors.error,
+      onPrimary: Colors.white,
+      onSurface: AppColors.textPrimary,
     ),
     
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.surfaceLight,
-      foregroundColor: AppColors.textPrimary,
+      backgroundColor: AppColors.deepNavy,
+      foregroundColor: AppColors.textLight,
       elevation: 0,
       centerTitle: true,
       titleTextStyle: TextStyle(
-        color: AppColors.textPrimary,
+        color: AppColors.textLight,
         fontSize: 20,
         fontWeight: FontWeight.w600,
       ),
@@ -60,7 +72,7 @@ class AppTheme {
     
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primaryColor,
+        backgroundColor: AppColors.primaryColor, // gold
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -91,14 +103,14 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primaryColor, width: 2),
+        borderSide: const BorderSide(color: AppColors.secondaryColor, width: 2), // teal focus
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
     
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: AppColors.surfaceLight,
-      selectedItemColor: AppColors.primaryColor,
+      selectedItemColor: AppColors.primaryColor, // gold highlights
       unselectedItemColor: AppColors.textSecondary,
       type: BottomNavigationBarType.fixed,
       elevation: 8,
@@ -116,10 +128,12 @@ class AppTheme {
       surface: AppColors.surfaceDark,
       background: AppColors.backgroundDark,
       error: AppColors.error,
+      onPrimary: Colors.white,
+      onSurface: AppColors.textLight,
     ),
     
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: AppColors.deepNavy,
       foregroundColor: AppColors.textLight,
       elevation: 0,
       centerTitle: true,
@@ -140,7 +154,7 @@ class AppTheme {
     
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: AppColors.surfaceDark,
-      selectedItemColor: AppColors.primaryLight,
+      selectedItemColor: AppColors.primaryColor, // gold
       unselectedItemColor: Colors.white54,
       type: BottomNavigationBarType.fixed,
       elevation: 8,

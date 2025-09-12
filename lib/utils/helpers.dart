@@ -125,7 +125,7 @@ class Helpers {
               onPressed: () => Navigator.pop(context, false),
               child: Text(
                 cancelText,
-                style: TextStyle(color: AppColors.textSecondary),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
             ),
             ElevatedButton(

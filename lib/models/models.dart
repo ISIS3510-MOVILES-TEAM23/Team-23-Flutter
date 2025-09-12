@@ -1,211 +1,327 @@
 class User {
-  final String id;
+  final String id; // maps from _id
   final String name;
+  final String contactPreferences; // 'push' | 'email'
   final String email;
-  final String? profileImageUrl;
-  final bool isSeller;
-  final double? rating;
-  final int? totalSales;
+  final String password; // ideally hashed
+  final String role; // 'student' | 'professor' | 'staff'
+  final DateTime createdAt;
 
   const User({
     required this.id,
     required this.name,
+    required this.contactPreferences,
     required this.email,
-    this.profileImageUrl,
-    this.isSeller = false,
-    this.rating,
-    this.totalSales,
+    required this.password,
+    required this.role,
+    required this.createdAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
+      id: json['_id'] ?? json['id'],
       name: json['name'],
+      contactPreferences: json['contact_preferences'],
       email: json['email'],
-      profileImageUrl: json['profileImageUrl'],
-      isSeller: json['isSeller'] ?? false,
-      rating: json['rating']?.toDouble(),
-      totalSales: json['totalSales'],
-    );
-  }
-}
-
-class Category {
-  final String id;
-  final String name;
-  final String icon;
-
-  const Category({
-    required this.id,
-    required this.name,
-    required this.icon,
-  });
-
-  factory Category.fromJson(Map<String, dynamic> json) {
-    return Category(
-      id: json['id'],
-      name: json['name'],
-      icon: json['icon'],
-    );
-  }
-}
-
-class Product {
-  final String id;
-  final String title;
-  final String description;
-  final double price;
-  final List<String> images;
-  final String categoryId;
-  final String sellerId;
-  final String sellerName;
-  final String condition; // 'new', 'like_new', 'good', 'fair'
-  final DateTime createdAt;
-  final bool isAvailable;
-  final bool isFeatured;
-  final int views;
-
-  const Product({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.price,
-    required this.images,
-    required this.categoryId,
-    required this.sellerId,
-    required this.sellerName,
-    required this.condition,
-    required this.createdAt,
-    this.isAvailable = true,
-    this.isFeatured = false,
-    this.views = 0,
-  });
-
-  factory Product.fromJson(Map<String, dynamic> json) {
-    return Product(
-      id: json['id'],
-      title: json['title'],
-      description: json['description'],
-      price: json['price'].toDouble(),
-      images: List<String>.from(json['images']),
-      categoryId: json['categoryId'],
-      sellerId: json['sellerId'],
-      sellerName: json['sellerName'],
-      condition: json['condition'],
-      createdAt: DateTime.parse(json['createdAt']),
-      isAvailable: json['isAvailable'] ?? true,
-      isFeatured: json['isFeatured'] ?? false,
-      views: json['views'] ?? 0,
+      password: json['password'],
+      role: json['role'],
+      createdAt: DateTime.parse(json['created_at']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'title': title,
-      'description': description,
-      'price': price,
-      'images': images,
-      'categoryId': categoryId,
-      'sellerId': sellerId,
-      'sellerName': sellerName,
-      'condition': condition,
-      'createdAt': createdAt.toIso8601String(),
-      'isAvailable': isAvailable,
-      'isFeatured': isFeatured,
-      'views': views,
+      '_id': id,
+      'name': name,
+      'contact_preferences': contactPreferences,
+      'email': email,
+      'password': password,
+      'role': role,
+      'created_at': createdAt.toIso8601String(),
     };
   }
 }
 
-class Message {
-  final String id;
-  final String conversationId;
-  final String senderId;
-  final String receiverId;
-  final String content;
-  final DateTime timestamp;
-  final bool isRead;
+class SubCategory {
+  final String id; // maps from _id
+  final String name;
+  final String description;
 
-  const Message({
+  const SubCategory({
     required this.id,
-    required this.conversationId,
-    required this.senderId,
-    required this.receiverId,
-    required this.content,
-    required this.timestamp,
-    this.isRead = false,
+    required this.name,
+    required this.description,
   });
 
-  factory Message.fromJson(Map<String, dynamic> json) {
-    return Message(
-      id: json['id'],
-      conversationId: json['conversationId'],
-      senderId: json['senderId'],
-      receiverId: json['receiverId'],
-      content: json['content'],
-      timestamp: DateTime.parse(json['timestamp']),
-      isRead: json['isRead'] ?? false,
+  factory SubCategory.fromJson(Map<String, dynamic> json) {
+    return SubCategory(
+      id: json['_id'] ?? json['id'],
+      name: json['name'],
+      description: json['description'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'name': name,
+      'description': description,
+    };
   }
 }
 
-class Conversation {
-  final String id;
-  final String productId;
-  final String productTitle;
-  final String productImage;
-  final String buyerId;
-  final String buyerName;
-  final String sellerId;
-  final String sellerName;
-  final Message? lastMessage;
-  final DateTime updatedAt;
-  final int unreadCount;
+class Category {
+  final String id; // maps from _id
+  final String name;
+  final String description;
+  final SubCategory? subcategory;
 
-  const Conversation({
+  const Category({
     required this.id,
-    required this.productId,
-    required this.productTitle,
-    required this.productImage,
-    required this.buyerId,
-    required this.buyerName,
-    required this.sellerId,
-    required this.sellerName,
-    this.lastMessage,
-    required this.updatedAt,
-    this.unreadCount = 0,
+    required this.name,
+    required this.description,
+    this.subcategory,
   });
 
-  factory Conversation.fromJson(Map<String, dynamic> json) {
-    return Conversation(
-      id: json['id'],
-      productId: json['productId'],
-      productTitle: json['productTitle'],
-      productImage: json['productImage'],
-      buyerId: json['buyerId'],
-      buyerName: json['buyerName'],
-      sellerId: json['sellerId'],
-      sellerName: json['sellerName'],
-      lastMessage: json['lastMessage'] != null 
-          ? Message.fromJson(json['lastMessage']) 
+  factory Category.fromJson(Map<String, dynamic> json) {
+    return Category(
+      id: json['_id'] ?? json['id'],
+      name: json['name'],
+      description: json['description'] ?? '',
+      subcategory: json['subcategory'] != null
+          ? SubCategory.fromJson(json['subcategory'])
           : null,
-      updatedAt: DateTime.parse(json['updatedAt']),
-      unreadCount: json['unreadCount'] ?? 0,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'name': name,
+      'description': description,
+      'subcategory': subcategory?.toJson(),
+    };
+  }
+}
+
+class Post {
+  final String id; // maps from _id
+  final String title;
+  final String description;
+  final int price; // stored as integer (e.g., cents or local currency units)
+  final String status; // 'active' | 'sold' | 'archived'
+  final String userId; // reference to user
+  final String subCategoryId; // reference path: category/<id>/sub_category/<id>
+  final List<String> images;
+  final DateTime createdAt;
+
+  const Post({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.price,
+    required this.status,
+    required this.userId,
+    required this.subCategoryId,
+    required this.images,
+    required this.createdAt,
+  });
+
+  factory Post.fromJson(Map<String, dynamic> json) {
+    return Post(
+      id: json['_id'] ?? json['id'],
+      title: json['title'],
+      description: json['description'],
+      price: json['price'] is int ? json['price'] : (json['price'] as num).toInt(),
+      status: json['status'],
+      userId: json['user_id'],
+      subCategoryId: json['sub_category_id'],
+      images: List<String>.from(json['images'] ?? const []),
+      createdAt: DateTime.parse(json['created_at']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'title': title,
+      'description': description,
+      'price': price,
+      'status': status,
+      'user_id': userId,
+      'sub_category_id': subCategoryId,
+      'images': images,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+}
+
+class ChatMessage {
+  final String id; // maps from _id
+  final String senderId;
+  final String receiverId;
+  final String? postId; // optional reference like 'post/<id>'
+  final String? content;
+  final String? image; // optional image URL
+  final DateTime sentAt;
+  final bool read;
+
+  const ChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.receiverId,
+    this.postId,
+    this.content,
+    this.image,
+    required this.sentAt,
+    this.read = false,
+  });
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['_id'] ?? json['id'],
+      senderId: json['sender_id'],
+      receiverId: json['receiver_id'],
+      postId: json['post_id'],
+      content: json['content'],
+      image: json['image'],
+      sentAt: DateTime.parse(json['sent_at']),
+      read: json['read'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'sender_id': senderId,
+      'receiver_id': receiverId,
+      'post_id': postId,
+      'content': content,
+      'image': image,
+      'sent_at': sentAt.toIso8601String(),
+      'read': read,
+    };
+  }
+}
+
+class Chat {
+  final String id; // maps from _id
+  final String user1Id;
+  final String user2Id;
+  final List<ChatMessage> messages1; // first batch
+
+  const Chat({
+    required this.id,
+    required this.user1Id,
+    required this.user2Id,
+    required this.messages1,
+  });
+
+  factory Chat.fromJson(Map<String, dynamic> json) {
+    return Chat(
+      id: json['_id'] ?? json['id'],
+      user1Id: json['user_1_id'],
+      user2Id: json['user_2_id'],
+      messages1: (json['messages_1'] as List<dynamic>? ?? const [])
+          .map((m) => ChatMessage.fromJson(m))
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'user_1_id': user1Id,
+      'user_2_id': user2Id,
+      'messages_1': messages1.map((m) => m.toJson()).toList(),
+    };
+  }
+}
+
+class Sale {
+  final String id; // maps from _id
+  final String postId; // 'post/<id>'
+  final String buyerId; // 'user/<id>'
+  final String sellerId; // 'user/<id>'
+  final int price;
+  final String status; // pending | completed | canceled | acknowledged
+  final DateTime createdAt;
+
+  const Sale({
+    required this.id,
+    required this.postId,
+    required this.buyerId,
+    required this.sellerId,
+    required this.price,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory Sale.fromJson(Map<String, dynamic> json) {
+    return Sale(
+      id: json['_id'] ?? json['id'],
+      postId: json['post_id'],
+      buyerId: json['buyer_id'],
+      sellerId: json['seller_id'],
+      price: json['price'] is int ? json['price'] : (json['price'] as num).toInt(),
+      status: json['status'],
+      createdAt: DateTime.parse(json['created_at']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'post_id': postId,
+      'buyer_id': buyerId,
+      'seller_id': sellerId,
+      'price': price,
+      'status': status,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+}
+
+class TransactionAck {
+  final String transactionId;
+  final String buyerId; // 'user/<id>'
+  final String sellerId; // 'user/<id>'
+  final String saleId; // 'sale/<id>'
+
+  const TransactionAck({
+    required this.transactionId,
+    required this.buyerId,
+    required this.sellerId,
+    required this.saleId,
+  });
+
+  factory TransactionAck.fromJson(Map<String, dynamic> json) {
+    return TransactionAck(
+      transactionId: json['transaction_id'],
+      buyerId: json['buyer_id'],
+      sellerId: json['seller_id'],
+      saleId: json['sale_id'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'transaction_id': transactionId,
+      'buyer_id': buyerId,
+      'seller_id': sellerId,
+      'sale_id': saleId,
+    };
   }
 }
 
 class FilterOptions {
   final double? minPrice;
   final double? maxPrice;
-  final String? condition;
   final String? sortBy;
 
   const FilterOptions({
     this.minPrice,
     this.maxPrice,
-    this.condition,
     this.sortBy,
   });
 }

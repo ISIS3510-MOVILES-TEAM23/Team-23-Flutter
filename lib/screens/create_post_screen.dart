@@ -18,7 +18,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _priceController = TextEditingController();
   
   String? selectedCategory;
-  String selectedCondition = 'good';
   List<String> imagePaths = [];
   List<Category> categories = [];
   bool isLoading = false;
@@ -68,16 +67,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     });
 
     try {
+      final priceInCents = (double.parse(_priceController.text) * 100).toInt();
       final productData = {
         'title': _titleController.text,
         'description': _descriptionController.text,
-        'price': double.parse(_priceController.text),
-        'categoryId': selectedCategory,
-        'condition': selectedCondition,
+        'price': priceInCents,
+        'sub_category_id': 'category/$selectedCategory/sub_category/unknown',
+        'status': 'active',
         'images': imagePaths,
+        'user_id': 'user/u_current',
       };
 
-      final success = await MockService.createProduct(productData);
+      final success = await MockService.createPost(productData);
       
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -115,317 +116,375 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Create Post'),
+        title: const Text('Post'),
+        centerTitle: true,
         elevation: 0,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => context.pop(),
+        ),
       ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image Upload Section
-              const Text(
-                'Photos',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Add up to 5 photos',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 100,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: imagePaths.length + (imagePaths.length < 5 ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == imagePaths.length) {
-                      return GestureDetector(
-                        onTap: _addImage,
-                        child: Container(
-                          width: 100,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.primaryColor.withOpacity(0.3),
-                              width: 2,
-                              style: BorderStyle.solid,
-                            ),
+              // Add Photos Button
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: InkWell(
+                  onTap: imagePaths.length < 5 ? _addImage : null,
+                  child: Container(
+                    width: double.infinity,
+                    height: imagePaths.isEmpty ? 180 : 120,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardTheme.color,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.textSecondary.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.camera_alt,
+                          size: imagePaths.isEmpty ? 48 : 36,
+                          color: AppColors.textSecondary.withOpacity(0.6),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          imagePaths.isEmpty 
+                              ? 'Add photos' 
+                              : 'Add more\nphotos',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: imagePaths.isEmpty ? 18 : 16,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textSecondary.withOpacity(0.8),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add_photo_alternate,
-                                size: 32,
-                                color: AppColors.primaryColor,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Add Photo',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.primaryColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              // Photo Carousel
+              if (imagePaths.isNotEmpty)
+                SizedBox(
+                  height: 120,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: imagePaths.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        width: 120,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Stack(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.textSecondary.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                                image: DecorationImage(
+                                  image: NetworkImage(imagePaths[index]),
+                                  fit: BoxFit.cover,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: InkWell(
+                                onTap: () => _removeImage(index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       );
-                    }
-                    
-                    return Container(
-                      width: 100,
-                      margin: const EdgeInsets.only(right: 12),
-                      child: Stack(
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              image: DecorationImage(
-                                image: NetworkImage(imagePaths[index]),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: GestureDetector(
-                              onTap: () => _removeImage(index),
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                    },
+                  ),
+                ),
+              
+              if (imagePaths.isNotEmpty) const SizedBox(height: 20),
+              
+              // Title Field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Title',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Title
-              const Text(
-                'Title',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  hintText: 'Enter product title',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a title';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              
-              // Description
-              const Text(
-                'Description',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Describe your product...',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a description';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              
-              // Price
-              const Text(
-                'Price',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  hintText: '0.00',
-                  prefixText: '\$ ',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a price';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid price';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              
-              // Category
-              const Text(
-                'Category',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: selectedCategory,
-                decoration: const InputDecoration(
-                  hintText: 'Select a category',
-                ),
-                items: categories.map((category) {
-                  return DropdownMenuItem(
-                    value: category.id,
-                    child: Text('${category.icon} ${category.name}'),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedCategory = value;
-                  });
-                },
-                validator: (value) {
-                  if (value == null) {
-                    return 'Please select a category';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              
-              // Condition
-              const Text(
-                'Condition',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('New'),
-                    selected: selectedCondition == 'new',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          selectedCondition = 'new';
-                        });
-                      }
-                    },
-                    selectedColor: AppColors.success.withOpacity(0.2),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Like New'),
-                    selected: selectedCondition == 'like_new',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          selectedCondition = 'like_new';
-                        });
-                      }
-                    },
-                    selectedColor: AppColors.info.withOpacity(0.2),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Good'),
-                    selected: selectedCondition == 'good',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          selectedCondition = 'good';
-                        });
-                      }
-                    },
-                    selectedColor: AppColors.warning.withOpacity(0.2),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Fair'),
-                    selected: selectedCondition == 'fair',
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          selectedCondition = 'fair';
-                        });
-                      }
-                    },
-                    selectedColor: AppColors.error.withOpacity(0.2),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : _submitPost,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Post Product',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardTheme.color,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.textSecondary.withOpacity(0.2),
+                          width: 1,
                         ),
+                      ),
+                      child: TextFormField(
+                        controller: _titleController,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          hintText: 'Enter product title',
+                          hintStyle: TextStyle(
+                            color: AppColors.textSecondary.withOpacity(0.5),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a title';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
+              
+              // Description Field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Description',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardTheme.color,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.textSecondary.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 4,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          hintText: 'Describe your product...',
+                          hintStyle: TextStyle(
+                            color: AppColors.textSecondary.withOpacity(0.5),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a description';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Do not share contact details',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Price Field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Price',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardTheme.color,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.textSecondary.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: TextFormField(
+                        controller: _priceController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: InputDecoration(
+                          prefixText: '\$ ',
+                          prefixStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          hintText: '0.00',
+                          hintStyle: TextStyle(
+                            color: AppColors.textSecondary.withOpacity(0.5),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a price';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Please enter a valid price';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Category Field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Category',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardTheme.color,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.textSecondary.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        value: selectedCategory,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textPrimary,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Select a category',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(16),
+                        ),
+                        dropdownColor: Theme.of(context).cardTheme.color,
+                        items: categories.map((category) {
+                          return DropdownMenuItem(
+                            value: category.id,
+                            child: Text(category.name),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedCategory = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Please select a category';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              // Submit Button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : _submitPost,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Sell',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

@@ -19,8 +19,8 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  List<Message> messages = [];
-  Conversation? conversation;
+  List<ChatMessage> messages = [];
+  Chat? conversation;
   bool isLoading = true;
   bool isSending = false;
 
@@ -32,9 +32,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadData() async {
     try {
-      final convs = await MockService.getUserConversations('current_user');
+      final convs = await MockService.getUserChats('u_current');
       final conv = convs.firstWhere((c) => c.id == widget.conversationId);
-      final msgs = await MockService.getConversationMessages(widget.conversationId);
+      final msgs = await MockService.getChatMessages(widget.conversationId);
       
       setState(() {
         conversation = conv;
@@ -64,15 +64,13 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       isSending = true;
       // Add message optimistically
-      messages.add(Message(
+      final otherUserId = conversation!.user1Id == 'u_current' ? conversation!.user2Id : conversation!.user1Id;
+      messages.add(ChatMessage(
         id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-        conversationId: widget.conversationId,
-        senderId: 'current_user',
-        receiverId: conversation!.sellerId == 'current_user'
-            ? conversation!.buyerId
-            : conversation!.sellerId,
+        senderId: 'u_current',
+        receiverId: otherUserId,
         content: messageText,
-        timestamp: DateTime.now(),
+        sentAt: DateTime.now(),
       ));
     });
     
@@ -127,99 +125,25 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    final otherPersonName = conversation!.buyerId == 'current_user'
-        ? conversation!.sellerName
-        : conversation!.buyerName;
+    final otherPersonName = conversation!.user1Id == 'u_current'
+        ? conversation!.user2Id
+        : conversation!.user1Id;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Column(
-          children: [
-            Text(
-              otherPersonName,
-              style: const TextStyle(fontSize: 16),
-            ),
-            Text(
-              conversation!.productTitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
+        title: Text(otherPersonName, style: const TextStyle(fontSize: 16)),
         centerTitle: true,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () {
-              // Show product info
-              context.go('/home/product/${conversation!.productId}');
-            },
-          ),
-        ],
+        actions: const [],
       ),
       body: Column(
         children: [
-          // Product Info Card
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.05),
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.borderColor,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: NetworkImage(conversation!.productImage),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        conversation!.productTitle,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap to view product details',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textSecondary,
-                ),
-              ],
-            ),
-          ),
+          // (Removed product info card - not part of new chat model)
           
           // Messages List
           Expanded(
@@ -229,7 +153,7 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: messages.length,
               itemBuilder: (context, index) {
                 final message = messages[index];
-                final isMe = message.senderId == 'current_user';
+                final isMe = message.senderId == 'u_current';
                 
                 return Align(
                   alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -267,7 +191,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             ],
                           ),
                           child: Text(
-                            message.content,
+                            message.content ?? '',
                             style: TextStyle(
                               color: isMe
                                   ? Colors.white
@@ -277,8 +201,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _formatTime(message.timestamp),
-                          style: TextStyle(
+                          _formatTime(message.sentAt),
+                          style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.textSecondary,
                           ),
@@ -337,7 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppColors.primaryColor,
                       shape: BoxShape.circle,
                     ),
