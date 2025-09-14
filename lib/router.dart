@@ -90,7 +90,7 @@ final router = GoRouter(
                 GoRoute(
                   path: 'chat/:conversationId',
                   builder: (context, state) => ChatScreen(
-                    conversationId: state.pathParameters['conversationId']!,
+                    chatId: state.pathParameters['conversationId']!,
                   ),
                 ),
               ],

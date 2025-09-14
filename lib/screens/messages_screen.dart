@@ -58,7 +58,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Messages'),
+        centerTitle: true,
         elevation: 0,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -100,9 +102,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       final otherPersonName = conversation.user1Id == 'u_current'
                           ? conversation.user2Id
                           : conversation.user1Id;
-                      final lastMessage = conversation.messages1.isNotEmpty ? conversation.messages1.last : null;
+                      final lastMessage = conversation.messages1.isNotEmpty 
+                          ? conversation.messages1.last 
+                          : null;
                       final lastTime = lastMessage?.sentAt ?? DateTime.now();
-                      final isUnread = (lastMessage?.read == false) && (lastMessage?.receiverId == 'u_current');
+                      final isUnread = (lastMessage?.read == false) && 
+                          (lastMessage?.receiverId == 'u_current');
                       
                       return InkWell(
                         onTap: () {
@@ -126,7 +131,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           ),
                           child: Row(
                             children: [
-                              // Product Image
+                              // Product Image or User Avatar
                               Stack(
                                 children: [
                                   Container(
@@ -134,11 +139,27 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     height: 60,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(8),
-                                      image: DecorationImage(
-                                        image: const NetworkImage('https://picsum.photos/seed/chat/100/100'),
-                                        fit: BoxFit.cover,
-                                      ),
+                                      color: AppColors.primaryColor.withOpacity(0.1),
                                     ),
+                                    child: lastMessage?.postId != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.network(
+                                              'https://picsum.photos/seed/chat${conversation.id}/100/100',
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Icon(
+                                                  Icons.image_outlined,
+                                                  color: AppColors.primaryColor.withOpacity(0.5),
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.person_outline,
+                                            size: 30,
+                                            color: AppColors.primaryColor.withOpacity(0.5),
+                                          ),
                                   ),
                                   if (isUnread)
                                     Positioned(
@@ -151,7 +172,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                           color: AppColors.primaryColor,
                                           shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: Colors.white,
+                                            color: Theme.of(context).scaffoldBackgroundColor,
                                             width: 2,
                                           ),
                                         ),
@@ -196,12 +217,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                     const SizedBox(height: 4),
                                     Text(
                                       lastMessage?.content ?? 'No messages',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 14,
                                         color: AppColors.textSecondary,
+                                        fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
                                       ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(height: 4),
                                   ],
                                 ),
                               ),
