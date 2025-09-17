@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-<<<<<<< Updated upstream
-import 'screens/chat_screen.dart';
-import 'screens/messages_screen.dart';
-=======
-import 'screens/home_screen.dart';
 import 'screens/categories_screen.dart';
 import 'screens/category_products_screen.dart';
 import 'screens/product_detail_screen.dart';
-import 'screens/create_post_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/chat_screen.dart';
-import 'screens/profile_screen.dart';
 import 'screens/notifications_screen.dart';
->>>>>>> Stashed changes
 import 'widgets/main_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -27,11 +19,7 @@ final router = GoRouter(
         return MainScaffold(navigationShell: navigationShell);
       },
       branches: [
-<<<<<<< Updated upstream
-        // Messages branch
-=======
         // Home branch
->>>>>>> Stashed changes
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -52,8 +40,6 @@ final router = GoRouter(
             ),
           ],
         ),
-<<<<<<< Updated upstream
-=======
         
         // Categories branch
         StatefulShellBranch(
@@ -82,17 +68,10 @@ final router = GoRouter(
         ),
         
         // Create Post branch
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/post',
-              builder: (context, state) => const CreatePostScreen(),
-            ),
-          ],
-        ),
+        
         
         // Messages branch
-        StatefulShellBranch(
+         StatefulShellBranch(
           routes: [
             GoRoute(
               path: '/messages',
@@ -110,15 +89,7 @@ final router = GoRouter(
         ),
         
         // Profile branch
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/profile',
-              builder: (context, state) => const ProfileScreen(),
-            ),
-          ],
-        ),
->>>>>>> Stashed changes
+       
       ],
     ),
   ],

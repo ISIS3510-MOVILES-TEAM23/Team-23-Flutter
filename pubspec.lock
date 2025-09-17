@@ -244,17 +244,10 @@ packages:
     dependency: transitive
     description:
       name: image_picker_android
-<<<<<<< Updated upstream
-      sha256: "28f3987ca0ec702d346eae1d90eda59603a2101b52f1e234ded62cff1d5cfa6e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.8.13+1"
-=======
       sha256: a45bef33deb24839a51fb85a4d9e504ead2b1ad1c4779d02d09bf6a8857cdd52
       url: "https://pub.dev"
     source: hosted
     version: "0.8.13+2"
->>>>>>> Stashed changes
   image_picker_for_web:
     dependency: transitive
     description:
@@ -592,17 +585,10 @@ packages:
     dependency: transitive
     description:
       name: sqflite_android
-<<<<<<< Updated upstream
-      sha256: "2b3070c5fa881839f8b402ee4a39c1b4d561704d4ebbbcfb808a119bc2a1701b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.1"
-=======
       sha256: ecd684501ebc2ae9a83536e8b15731642b9570dc8623e0073d227d0ee2bfea88
       url: "https://pub.dev"
     source: hosted
     version: "2.4.2+2"
->>>>>>> Stashed changes
   sqflite_common:
     dependency: transitive
     description:
@@ -724,10 +710,5 @@ packages:
     source: hosted
     version: "1.1.0"
 sdks:
-<<<<<<< Updated upstream
-  dart: ">=3.8.0 <4.0.0"
-  flutter: ">=3.29.0"
-=======
   dart: ">=3.9.0 <4.0.0"
   flutter: ">=3.35.0"
->>>>>>> Stashed changes
