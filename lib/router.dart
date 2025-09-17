@@ -1,47 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'screens/categories_screen.dart';
-import 'screens/category_products_screen.dart';
-import 'screens/product_detail_screen.dart';
-import 'screens/messages_screen.dart';
-import 'screens/chat_screen.dart';
-import 'screens/notifications_screen.dart';
-import 'widgets/main_scaffold.dart';
+import 'package:myapp/screens/home_screen.dart';
+import 'package:myapp/screens/categories_screen.dart';
+import 'package:myapp/screens/category_list_screen.dart';
+import 'package:myapp/screens/product_detail_screen.dart';
+import 'package:myapp/screens/profile_screen.dart';
+import 'package:myapp/widgets/scaffold_with_nav_bar.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/messages',
+  initialLocation: '/home',
   routes: [
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
-        return MainScaffold(navigationShell: navigationShell);
+        return ScaffoldWithNavBar(navigationShell: navigationShell);
       },
       branches: [
-        // Home branch
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/messages',
-              builder: (context, state) => const MessagesScreen(),
+              path: '/home',
+              builder: (context, state) => const HomeScreen(),
               routes: [
                 GoRoute(
-                  path: 'chat/:conversationId',
-                  builder: (context, state) => ChatScreen(
-                    chatId: state.pathParameters['conversationId']!,
+                  path: 'product/:productId',
+                  builder: (context, state) => ProductDetailScreen(
+                    productId: state.pathParameters['productId']!,
                   ),
-                ),
-                GoRoute(
-                  path: 'notifications',
-                  builder: (context, state) => const NotificationsScreen(),
                 ),
               ],
             ),
           ],
         ),
-        
-        // Categories branch
         StatefulShellBranch(
           routes: [
             GoRoute(
@@ -50,7 +42,7 @@ final router = GoRouter(
               routes: [
                 GoRoute(
                   path: ':categoryId',
-                  builder: (context, state) => CategoryProductsScreen(
+                  builder: (context, state) => CategoryListScreen(
                     categoryId: state.pathParameters['categoryId']!,
                   ),
                   routes: [
@@ -66,30 +58,14 @@ final router = GoRouter(
             ),
           ],
         ),
-        
-        // Create Post branch
-        
-        
-        // Messages branch
-         StatefulShellBranch(
+        StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/messages',
-              builder: (context, state) => const MessagesScreen(),
-              routes: [
-                GoRoute(
-                  path: 'chat/:conversationId',
-                  builder: (context, state) => ChatScreen(
-                    chatId: state.pathParameters['conversationId']!,
-                  ),
-                ),
-              ],
+              path: '/profile',
+              builder: (context, state) => const ProfileScreen(),
             ),
           ],
         ),
-        
-        // Profile branch
-       
       ],
     ),
   ],
