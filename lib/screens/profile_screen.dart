@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import '../main.dart';
 import '../models/models.dart';
 import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
@@ -14,19 +12,14 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ProfileScreenState extends State<ProfileScreen> {
   User? currentUser;
   List<Post> myProducts = [];
-  List<Post> myPurchases = [];
-  List<Post> myFavorites = [];
-  List<Post> pending = [];
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
     _loadUserData();
   }
 
@@ -34,14 +27,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     try {
       final user = await MockService.getCurrentUser();
       final products = await MockService.getUserPosts(user.id);
-      final purchases = await MockService.getUserPurchases(user.id);
-      final favorites = await MockService.getUserFavorites(user.id);
       
       setState(() {
         currentUser = user;
         myProducts = products;
-        myPurchases = purchases;
-        myFavorites = favorites;
         isLoading = false;
       });
     } catch (e) {
@@ -113,15 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    
     if (isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -135,16 +116,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(
-              themeProvider.themeMode == ThemeMode.light
-                  ? Icons.dark_mode
-                  : Icons.light_mode,
-            ),
-            onPressed: () {
-              themeProvider.toggleTheme();
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
               // Settings
@@ -152,185 +123,172 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // User Info Section
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  child: Text(
-                    (currentUser?.name.isNotEmpty == true)
-                        ? currentUser!.name.substring(0, 2).toUpperCase()
-                        : 'UN',
-                    style: const TextStyle(fontSize: 24),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currentUser?.name ?? 'User Name',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        currentUser?.email ?? 'email@university.edu',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      // Additional badges removed (not in new user model)
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit),
-                  onPressed: _showEditProfileDialog,
-                ),
-              ],
-            ),
-          ),
-          
-          // Stats Row
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardTheme.color,
-              border: const Border(
-                top: BorderSide(color: AppColors.borderColor),
-                bottom: BorderSide(color: AppColors.borderColor),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatItem('Products', myProducts.length.toString()),
-                _buildStatItem('Purchases', myPurchases.length.toString()),
-                _buildStatItem('Favorites', myFavorites.length.toString()),
-                _buildStatItem('Pending', pending.length.toString()),
-              ],
-            ),
-          ),
-          
-          // Tab Bar
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardTheme.color,
-              border: const Border(
-                bottom: BorderSide(color: AppColors.borderColor),
-              ),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              labelColor: AppColors.primaryColor,
-              unselectedLabelColor: AppColors.textSecondary,
-              indicatorColor: AppColors.primaryColor,
-              tabs: const [
-                Tab(text: 'My Products'),
-                Tab(text: 'Purchases'),
-                Tab(text: 'Favorites'),
-                Tab(text: 'Pending'),
-              ],
-            ),
-          ),
-          
-          // Tab Views
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // My Products Tab
-                _buildProductGrid(myProducts, 'No products posted yet'),
-                
-                // Purchases Tab
-                _buildProductGrid(myPurchases, 'No purchases yet'),
-                
-                // Favorites Tab
-                _buildProductGrid(myFavorites, 'No favorites yet'),
-                
-                // Pending Tab
-                _buildProductGrid(pending, 'No pending transactions'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProductGrid(List<Post> products, String emptyMessage) {
-    if (products.isEmpty) {
-      return Center(
+      body: SingleChildScrollView(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 64,
-              color: AppColors.textSecondary.withOpacity(0.5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              emptyMessage,
-              style: const TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
+            const SizedBox(height: 30),
+            
+            // Profile Photo, Name and Email - Centered
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: AppColors.primaryColor.withOpacity(0.1),
+                    child: Text(
+                      (currentUser?.name.isNotEmpty == true)
+                          ? currentUser!.name.substring(0, 2).toUpperCase()
+                          : 'UN',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    currentUser?.name ?? 'User Name',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    currentUser?.email ?? 'email@university.edu',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w300,
+                      color: AppColors.textSecondary.withOpacity(0.8),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
               ),
             ),
+            
+            const SizedBox(height: 30),
+            
+            // Edit Profile Button - Full Width
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _showEditProfileDialog,
+                  icon: const Icon(Icons.edit, size: 20),
+                  label: const Text(
+                    'Edit Profile',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.borderColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Sales Button - Full Width
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    context.push('/profile/sales');
+                  },
+                  icon: const Icon(Icons.shopping_bag_outlined, size: 20),
+                  label: const Text(
+                    'Sales',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 40),
+            
+            // My Products Section
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'My Products',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Products Grid
+            if (myProducts.isEmpty)
+              Center(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 40),
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 64,
+                      color: AppColors.textSecondary.withOpacity(0.3),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No products posted yet',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textSecondary.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              )
+            else
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.75,
+                ),
+                itemCount: myProducts.length,
+                itemBuilder: (context, index) {
+                  final product = myProducts[index];
+                  return ProductCard(
+                    product: product,
+                    onTap: () {
+                      context.go('/home/product/${product.id}');
+                    },
+                  );
+                },
+              ),
+            
+            const SizedBox(height: 20),
           ],
         ),
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(20),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.75,
       ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return ProductCard(
-          product: product,
-          onTap: () {
-            context.go('/home/product/${product.id}');
-          },
-        );
-      },
     );
   }
 }

@@ -8,6 +8,7 @@ import 'screens/create_post_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/sales_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'widgets/main_scaffold.dart';
 
@@ -104,6 +105,12 @@ final router = GoRouter(
             GoRoute(
               path: '/profile',
               builder: (context, state) => const ProfileScreen(),
+              routes: [
+                GoRoute(
+                  path: 'sales',
+                  builder: (context, state) => const SalesScreen(),
+                ),
+              ],
             ),
           ],
         ),

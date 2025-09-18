@@ -396,4 +396,165 @@ class MockService {
     // Retornar ID de conversación simulado
     return 'chat_${DateTime.now().millisecondsSinceEpoch}';
   }
+  
+  static Future<List<PostWithChat>> getUserPostsWithChats(String userId) async {
+  await Future.delayed(const Duration(milliseconds: 500));
+  
+  // Simular posts del usuario que tienen chats (ventas)
+  return [
+    PostWithChat( 
+      post: Post(
+        id: 'p1',
+        title: 'MacBook Pro M2',
+        description: 'Excellent condition MacBook Pro with M2 chip, 16GB RAM',
+        price: 120000,
+        images: ['https://picsum.photos/seed/macbook/400/400'],
+        status: 'active',
+        userId: 'user/$userId',
+        subCategoryId: 'category/electronics/sub_category/laptops',
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+      chatId: 'chat_1',
+      buyer: User(
+        id: 'buyer1',
+        name: 'Carlos López',
+        contactPreferences: 'push',
+        email: 'carlos@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 100)),
+      ),
+      sale: Sale(
+        id: 'sale1',
+        postId: 'post/p1',
+        buyerId: 'user/buyer1',
+        sellerId: 'user/$userId',
+        price: 120000,
+        status: 'pending',
+        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+      ),
+    ),
+    PostWithChat(
+      post: Post(
+        id: 'p2',
+        title: 'Calculus Textbook',
+        description: 'Stewart Calculus 8th Edition, some highlights but good condition',
+        price: 4500,
+        images: ['https://picsum.photos/seed/calc/400/400'],
+        status: 'sold',
+        userId: 'user/$userId',
+        subCategoryId: 'category/books/sub_category/textbooks',
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+      ),
+      chatId: 'chat_2',
+      buyer: User(
+        id: 'buyer2',
+        name: 'María Rodríguez',
+        contactPreferences: 'email',
+        email: 'maria@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 80)),
+      ),
+      sale: Sale(
+        id: 'sale2',
+        postId: 'post/p2',
+        buyerId: 'user/buyer2',
+        sellerId: 'user/$userId',
+        price: 4500,
+        status: 'completed',
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
+      ),
+    ),
+    PostWithChat(
+      post: Post(
+        id: 'p3',
+        title: 'iPhone 13',
+        description: 'Perfect condition, includes charger and case',
+        price: 65000,
+        images: ['https://picsum.photos/seed/iphone/400/400'],
+        status: 'active',
+        userId: 'user/$userId',
+        subCategoryId: 'category/electronics/sub_category/phones',
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+      chatId: 'chat_3',
+      buyer: User(
+        id: 'buyer3',
+        name: 'Ana Martínez',
+        contactPreferences: 'push',
+        email: 'ana@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 60)),
+      ),
+      sale: Sale(
+        id: 'sale3',
+        postId: 'post/p3',
+        buyerId: 'user/buyer3',
+        sellerId: 'user/$userId',
+        price: 65000,
+        status: 'acknowledged',
+        createdAt: DateTime.now().subtract(const Duration(hours: 12)),
+      ),
+    ),
+    PostWithChat(
+      post: Post(
+        id: 'p4',
+        title: 'Statistics Textbook',
+        description: 'Required for STAT 201, minimal highlighting',
+        price: 3500,
+        images: ['https://picsum.photos/seed/stats/400/400'],
+        status: 'active',
+        userId: 'user/$userId',
+        subCategoryId: 'category/books/sub_category/textbooks',
+        createdAt: DateTime.now().subtract(const Duration(days: 7)),
+      ),
+      chatId: 'chat_4',
+      buyer: User(
+        id: 'buyer4',
+        name: 'Pedro Gómez',
+        contactPreferences: 'sms',
+        email: 'pedro@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 40)),
+      ),
+      sale: null, // Chat abierto pero sin venta formal aún
+    ),
+    PostWithChat(
+      post: Post(
+        id: 'p5',
+        title: 'Dorm Mini Fridge',
+        description: 'Compact refrigerator perfect for dorm rooms',
+        price: 8000,
+        images: ['https://picsum.photos/seed/fridge/400/400'],
+        status: 'sold',
+        userId: 'user/$userId',
+        subCategoryId: 'category/appliances/sub_category/fridge',
+        createdAt: DateTime.now().subtract(const Duration(days: 10)),
+      ),
+      chatId: 'chat_5',
+      buyer: User(
+        id: 'buyer5',
+        name: 'Luis Fernández',
+        contactPreferences: 'push',
+        email: 'luis@university.edu',
+        password: 'hashed',
+        role: 'student',
+        createdAt: DateTime.now().subtract(const Duration(days: 50)),
+      ),
+      sale: Sale(
+        id: 'sale5',
+        postId: 'post/p5',
+        buyerId: 'user/buyer5',
+        sellerId: 'user/$userId',
+        price: 8000,
+        status: 'completed',
+        createdAt: DateTime.now().subtract(const Duration(days: 8)),
+      ),
+    ),
+  ];
+}
+
 }

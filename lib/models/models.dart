@@ -325,3 +325,17 @@ class FilterOptions {
     this.sortBy,
   });
 }
+
+class PostWithChat {
+  final Post post;
+  final String? chatId;
+  final User? buyer;
+  final Sale? sale;
+
+  PostWithChat({
+    required this.post,
+    this.chatId,
+    this.buyer,
+    this.sale,
+  });
+}
