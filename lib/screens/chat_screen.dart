@@ -338,7 +338,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isMe 
-                                ? AppColors.primaryColor 
+                                ? AppColors.backgroundDark 
                                 : Theme.of(context).cardTheme.color,
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(16),
