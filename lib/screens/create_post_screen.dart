@@ -1,5 +1,7 @@
+import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../models/models.dart';
 import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
@@ -68,18 +70,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     try {
       final priceInCents = (double.parse(_priceController.text) * 100).toInt();
-      final productData = {
-        'title': _titleController.text,
-        'description': _descriptionController.text,
-        'price': priceInCents,
-        'sub_category_id': 'category/$selectedCategory/sub_category/unknown',
-        'status': 'active',
-        'images': imagePaths,
-        'user_id': 'user/u_current',
-      };
+      final user = await FirestoreService.getCurrentUser();
+      if (user == null) throw Exception('User not logged in');
+      final product = Post(
+        id: '',
+        title: _titleController.text,
+        description: _descriptionController.text,
+        price: priceInCents,
+        status: 'active',
+        userId: user.id,
+        categoryId: 'category/$selectedCategory',
+        images: imagePaths,
+        createdAt: DateTime.now(),
+      );
+      final productData = product.toJson();
+      final success = await FirestoreService.createPost(productData);
 
-      final success = await MockService.createPost(productData);
-      
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

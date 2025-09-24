@@ -1,32 +1,42 @@
-
 import 'package:campus_marketplace/services/auth_service.dart';
+import 'package:campus_marketplace/services/firestore_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _SignupScreenState extends State<SignupScreen> {
   String email = '';
   String password = '';
+  String confirmPassword = '';
   AuthService authService = AuthService();
 
-  _logIn() async {
+  _signup() async {
     var scaffoldMessenger = ScaffoldMessenger.of(context);
-    scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Logging in...')));
-    var userCredential = await authService.signInWithEmailAndPassword(email, password);
-    if (userCredential != null) {
-      scaffoldMessenger.hideCurrentSnackBar();
-      if (mounted) {
-        context.go('/home');
+    if (password == confirmPassword) {
+      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Creating account...')));
+      UserCredential? credential =
+          await authService.signUpWithEmailAndPassword(email, password);
+      if (credential != null) {
+        await FirestoreService.createUser();
+        scaffoldMessenger.hideCurrentSnackBar();
+        if (mounted) {
+          context.go('/home');
+        }
+      } else {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Sign up failed')),
+        );
       }
     } else {
       scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('Login failed')),
+        const SnackBar(content: Text('Passwords do not match')),
       );
     }
   }
@@ -55,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 40),
               const Text(
-                'Login',
+                'Sign Up',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
@@ -64,9 +74,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 40),
               TextField(
-                  onChanged: (value) {
-                    email = value;
-                  },
+                onChanged: (value) {
+                  email = value;
+                },
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   border: OutlineInputBorder(),
@@ -83,15 +93,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 20),
+              TextField(
+                onChanged: (value) {
+                  confirmPassword = value;
+                },
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: _logIn,
+                onPressed: _signup,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: const Text(
-                  'Sign In',
+                  'Sign Up',
                   style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
@@ -111,10 +132,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {
                   authService.signInWithGoogle();
                 },
-                icon: Image.network('http://pngimg.com/uploads/google/google_PNG19635.png', height: 24.0),
-                label: const Text('Sign in with Google'),
+                icon: Image.network(
+                    'http://pngimg.com/uploads/google/google_PNG19635.png',
+                    height: 24.0),
+                label: const Text('Sign up with Google'),
                 style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.black, backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  backgroundColor: Colors.white,
                   side: const BorderSide(color: Colors.grey),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -123,12 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Don't have an account?"),
+                  const Text("Already have an account?"),
                   TextButton(
                     onPressed: () {
-                      context.go('/signup');
+                      context.go('/login');
                     },
-                    child: const Text('Sign Up'),
+                    child: const Text('Sign In'),
                   ),
                 ],
               ),
