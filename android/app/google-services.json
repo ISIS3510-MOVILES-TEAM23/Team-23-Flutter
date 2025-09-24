@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "16019369694",
+    "project_id": "isis3510-moviles-team23",
+    "storage_bucket": "isis3510-moviles-team23.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16019369694:android:1fedf0c1dca92f86df1c4f",
+        "android_client_info": {
+          "package_name": "com.example.campus_marketplace"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "16019369694-1rc4jts6gl944cm0tan8508r670b8fsm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlgOSSOrved-1IZh5GuXNkstTfDFRFv_Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "16019369694-1rc4jts6gl944cm0tan8508r670b8fsm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -11,13 +11,18 @@ import 'screens/profile_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'widgets/main_scaffold.dart';
+import 'screens/login_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/home',
+  initialLocation: '/login',
   routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainScaffold(navigationShell: navigationShell);
