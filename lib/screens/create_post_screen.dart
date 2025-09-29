@@ -2,6 +2,9 @@ import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:firebase_auth/firebase_auth.dart' as auth; 
+import '../services/storage_service.dart';                  
+
 import '../models/models.dart';
 import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
@@ -18,11 +21,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
-  
+
   String? selectedCategory;
-  List<String> imagePaths = [];
+  List<String> imagePaths = []; // aquí guardamos los downloadURLs
   List<Category> categories = [];
   bool isLoading = false;
+
+  // 👇 Usamos un productId local para agrupar las fotos en Storage
+  String? _productId;
+  String _ensureProductId() {
+    _productId ??= 'prod_${DateTime.now().millisecondsSinceEpoch}';
+    return _productId!;
+  }
 
   @override
   void initState() {
@@ -31,25 +41,104 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final cats = await MockService.getCategories();
+    final cats = await MockService.getCategories(); // o FirestoreService.getCategories() si ya migraste
     setState(() {
       categories = cats;
     });
   }
 
+  // 👇 Abre sheet para elegir galería o cámara y sube a Storage
   void _addImage() {
-    // Simulate image selection
-    if (imagePaths.length < 5) {
-      setState(() {
-        imagePaths.add('https://picsum.photos/seed/${DateTime.now().millisecondsSinceEpoch}/400/400');
-      });
-    }
+    if (imagePaths.length >= 5) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardTheme.color,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Elegir de galería'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _pickAndUpload(fromCamera: false);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tomar foto'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _pickAndUpload(fromCamera: true);
+              },
+            ),
+            const SizedBox(height: 6),
+          ],
+        ),
+      ),
+    );
   }
 
-  void _removeImage(int index) {
+  // 👇 Sube imagen (galería o cámara) y agrega el downloadURL a imagePaths
+  Future<void> _pickAndUpload({required bool fromCamera}) async {
+  try {
+    final currentUser = auth.FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes iniciar sesión para subir imágenes')),
+      );
+      return;
+    }
+
+    final ownerUid = currentUser.uid;
+    final productId = _ensureProductId();
+
+    String? url;
+    if (fromCamera) {
+      url = await StorageService.uploadFromCamera(
+        ownerUid: ownerUid,
+        productId: productId,
+      );
+    } else {
+      url = await StorageService.uploadFromGallery(
+        ownerUid: ownerUid,
+        productId: productId,
+      );
+    }
+
+    if (!mounted) return;
+    if (url != null) {
+      // ✅ Promoción a no-nulo antes del closure
+      final String downloadUrl = url;
+      setState(() {
+        imagePaths.add(downloadUrl); // List<String> ok
+      });
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('No se pudo subir la imagen: $e'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+}
+
+
+  // 👇 Elimina del carrusel y del bucket
+  void _removeImage(int index) async {
+    final url = imagePaths[index];
     setState(() {
       imagePaths.removeAt(index);
     });
+    try {
+      await StorageService.deleteByUrl(url);
+    } catch (_) {
+      // opcional: mostrar snackbar si quieres advertir que no se pudo borrar del bucket
+    }
   }
 
   Future<void> _submitPost() async {
@@ -64,27 +153,26 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return;
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
     try {
       final priceInCents = (double.parse(_priceController.text) * 100).toInt();
       final user = await FirestoreService.getCurrentUser();
       if (user == null) throw Exception('User not logged in');
+
       final product = Post(
-        id: '',
+        id: '', // si quieres que sea _productId, cámbialo y haz set en lugar de add
         title: _titleController.text,
         description: _descriptionController.text,
         price: priceInCents,
         status: 'active',
-        userId: user.id,
+        userId: user.id, // asegúrate que tus reglas usen el mismo campo (userId vs uid)
         categoryId: 'category/$selectedCategory',
-        images: imagePaths,
+        images: imagePaths, // ✅ links del bucket
         createdAt: DateTime.now(),
       );
-      final productData = product.toJson();
-      final success = await FirestoreService.createPost(productData);
+
+      final success = await FirestoreService.createPost(product.toJson());
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -96,16 +184,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         context.go('/home');
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to post product'),
+        SnackBar(
+          content: Text('Failed to post product: $e'),
           backgroundColor: AppColors.error,
         ),
       );
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -163,8 +250,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          imagePaths.isEmpty 
-                              ? 'Add photos' 
+                          imagePaths.isEmpty
+                              ? 'Add photos'
                               : 'Add more\nphotos',
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -178,7 +265,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                 ),
               ),
-              
+
               // Photo Carousel
               if (imagePaths.isNotEmpty)
                 SizedBox(
@@ -231,10 +318,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     },
                   ),
                 ),
-              
+
               if (imagePaths.isNotEmpty) const SizedBox(height: 20),
-              
-              // Title Field
+
+              // Title
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -281,8 +368,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Description Field
+
+              // Description
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -338,8 +425,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Price Field
+
+              // Price
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -395,8 +482,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Category Field
+
+              // Category
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
@@ -455,8 +542,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              
-              // Submit Button
+
+              // Submit
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: SizedBox(
@@ -476,7 +563,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
                         : const Text(

@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  firebase_storage: ^13.0.2
 
   # Core packages
   cupertino_icons: ^1.0.6
@@ -39,8 +40,8 @@ dependencies:
   # Optional: For pull to refresh
   pull_to_refresh: ^2.0.0
   cloud_firestore: ^6.0.1
-  firebase_auth: ^6.0.2
-  firebase_core: ^4.1.0
+  firebase_auth: ^6.1.0
+  firebase_core: ^4.1.1
   google_sign_in: ^7.2.0
 
 dev_dependencies:
