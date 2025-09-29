@@ -3,7 +3,6 @@ class User {
   final String name;
   final String contactPreferences; // 'push' | 'email'
   final String email;
-  final String password; // ideally hashed
   final String role; // 'student' | 'professor' | 'staff'
   final DateTime createdAt;
 
@@ -12,7 +11,6 @@ class User {
     required this.name,
     required this.contactPreferences,
     required this.email,
-    required this.password,
     required this.role,
     required this.createdAt,
   });
@@ -23,9 +21,8 @@ class User {
       name: json['name'],
       contactPreferences: json['contact_preferences'],
       email: json['email'],
-      password: json['password'],
       role: json['role'],
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: DateTime.parse(json['created_at'])
     );
   }
 
@@ -35,7 +32,6 @@ class User {
       'name': name,
       'contact_preferences': contactPreferences,
       'email': email,
-      'password': password,
       'role': role,
       'created_at': createdAt.toIso8601String(),
     };
@@ -111,7 +107,7 @@ class Post {
   final int price; // stored as integer (e.g., cents or local currency units)
   final String status; // 'active' | 'sold' | 'archived'
   final String userId; // reference to user
-  final String subCategoryId; // reference path: category/<id>/sub_category/<id>
+  final String categoryId; // reference path: category/<id>
   final List<String> images;
   final DateTime createdAt;
 
@@ -122,7 +118,7 @@ class Post {
     required this.price,
     required this.status,
     required this.userId,
-    required this.subCategoryId,
+    required this.categoryId,
     required this.images,
     required this.createdAt,
   });
@@ -135,7 +131,7 @@ class Post {
       price: json['price'] is int ? json['price'] : (json['price'] as num).toInt(),
       status: json['status'],
       userId: json['user_id'],
-      subCategoryId: json['sub_category_id'],
+      categoryId: json['  category_id'],
       images: List<String>.from(json['images'] ?? const []),
       createdAt: DateTime.parse(json['created_at']),
     );
@@ -149,7 +145,7 @@ class Post {
       'price': price,
       'status': status,
       'user_id': userId,
-      'sub_category_id': subCategoryId,
+      'category_id': categoryId,
       'images': images,
       'created_at': createdAt.toIso8601String(),
     };

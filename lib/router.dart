@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'screens/home_screen.dart';
+
 import 'screens/categories_screen.dart';
 import 'screens/category_products_screen.dart';
-import 'screens/product_detail_screen.dart';
-import 'screens/create_post_screen.dart';
-import 'screens/messages_screen.dart';
 import 'screens/chat_screen.dart';
+import 'screens/create_post_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/messages_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/product_detail_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sales_screen.dart';
-import 'screens/notifications_screen.dart';
+import 'screens/signup_screen.dart';
 import 'widgets/main_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/home',
+  initialLocation: '/login',
   routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/signup',
+      builder: (context, state) => const SignupScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainScaffold(navigationShell: navigationShell);

@@ -1,9 +1,17 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'theme/app_colors.dart';
-import 'router.dart';
 
-void main() {
+import 'firebase_options.dart';
+import 'router.dart';
+import 'theme/app_colors.dart';
+
+final Future<FirebaseApp> firebaseInit =
+    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await firebaseInit;
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),
