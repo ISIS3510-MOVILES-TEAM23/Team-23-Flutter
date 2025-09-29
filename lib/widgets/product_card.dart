@@ -41,11 +41,43 @@ class ProductCard extends StatelessWidget {
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(12),
                       ),
-                      image: DecorationImage(
-                        image: NetworkImage(product.images.isNotEmpty
+                      color: Colors.grey.withOpacity(0.1),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
+                      child: Image.network(
+                        product.images.isNotEmpty
                             ? product.images.first
-                            : 'https://via.placeholder.com/400x400.png?text=No+Image'),
+                            : 'https://picsum.photos/seed/${product.id}/400/400',
                         fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey.withOpacity(0.1),
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 40,
+                              color: AppColors.textSecondary.withOpacity(0.3),
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: Colors.grey.withOpacity(0.1),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),

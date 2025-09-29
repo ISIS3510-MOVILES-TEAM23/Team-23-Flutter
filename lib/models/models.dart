@@ -131,7 +131,7 @@ class Post {
       price: json['price'] is int ? json['price'] : (json['price'] as num).toInt(),
       status: json['status'],
       userId: json['user_id'],
-      categoryId: json['  category_id'],
+      categoryId: json['category_id'],
       images: List<String>.from(json['images'] ?? const []),
       createdAt: DateTime.parse(json['created_at']),
     );

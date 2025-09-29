@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class CategoryProductsScreen extends StatefulWidget {
@@ -35,8 +35,10 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
 
   Future<void> _loadData() async {
     try {
-      final cats = await MockService.getCategories();
-      final prods = await MockService.getPostsByCategory(
+      print('CategoryProductsScreen: Loading data for categoryId: ${widget.categoryId}'); // Debug
+      final cats = await FirestoreService.getCategories();
+      print('CategoryProductsScreen: Loaded ${cats.length} categories'); // Debug
+      final prods = await FirestoreService.getPostsByCategory(
         widget.categoryId,
         filters: FilterOptions(
           minPrice: priceRange.start,
@@ -44,6 +46,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
           sortBy: sortBy,
         ),
       );
+      print('CategoryProductsScreen: Received ${prods.length} products'); // Debug
       
       setState(() {
         categories = cats;
@@ -125,10 +128,15 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('CategoryProductsScreen: Building with categoryId: ${widget.categoryId}'); // Debug
+    print('CategoryProductsScreen: Available categories: ${categories.map((c) => 'ID:${c.id}, Name:${c.name}').join(', ')}'); // Debug
+    
     final category = categories.firstWhere(
-      (c) => c.id == widget.categoryId,
-      orElse: () => const Category(id: '', name: 'Products', description: ''),
+      (c) => c.id == widget.categoryId || c.name == widget.categoryId,
+      orElse: () => Category(id: widget.categoryId, name: widget.categoryId, description: ''),
     );
+    
+    print('CategoryProductsScreen: Using category - ID: ${category.id}, Name: ${category.name}'); // Debug
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -312,6 +320,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                             
                             return InkWell(
                               onTap: () {
+                                print('Navigating to product: ${product.id} from category: ${widget.categoryId}'); // Debug
                                 context.go('/categories/${widget.categoryId}/product/${product.id}');
                               },
                               child: Container(
