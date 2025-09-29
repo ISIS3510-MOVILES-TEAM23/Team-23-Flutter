@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -30,10 +30,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Future<void> _loadProduct() async {
     try {
-      final prod = await MockService.getPostById(widget.productId);
+      final prod = await FirestoreService.getPostById(widget.productId);
       User? user;
       if (prod != null) {
-        user = await MockService.getUserById(prod.userId);
+        user = await FirestoreService.getUserById(prod.userId);
       }
       setState(() {
         product = prod;
@@ -51,7 +51,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (product == null) return;
     
     // Create conversation and navigate to chat
-    final conversationId = await MockService.createChat(
+    final conversationId = await FirestoreService.createChat(
       product!.id,
       product!.userId,
     );
@@ -111,6 +111,49 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             width: double.infinity,
                             height: 260,
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.image_outlined,
+                                      size: 60,
+                                      color: AppColors.textSecondary.withOpacity(0.3),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Image not available',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary.withOpacity(0.6),
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),

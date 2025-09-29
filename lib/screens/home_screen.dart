@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/product_card.dart';
 
@@ -28,8 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadProducts() async {
     try {
-      final highlighted = await MockService.getHighlightedPosts();
-      final newProds = await MockService.getNewPosts();
+      final highlighted = await FirestoreService.getHighlightedPosts();
+      final newProds = await FirestoreService.getNewPosts();
       
       setState(() {
         highlightedProducts = highlighted;
@@ -131,6 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: ProductCard(
                                   product: product,
                                   onTap: () {
+                                    print('Navigating to highlighted product: ID=${product.id}');
                                     context.go('/home/product/${product.id}');
                                   },
                                 ),
@@ -169,11 +170,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: newProducts.length,
                     itemBuilder: (context, index) {
                       final product = newProducts[index];
-                      final imageUrl = product.images.isNotEmpty
+                              final imageUrl = product.images.isNotEmpty
                           ? product.images.first
                           : 'https://picsum.photos/seed/${product.id}/300/200';
                       return InkWell(
-                        onTap: () => context.go('/home/product/${product.id}'),
+                        onTap: () {
+                          print('Navigating to product: ID=${product.id}');
+                          context.go('/home/product/${product.id}');
+                        },
                         child: Container(
                           margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                           padding: const EdgeInsets.all(12),
@@ -233,6 +237,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                     child: Image.network(
                                       imageUrl,
                                       fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey.withOpacity(0.1),
+                                          child: Icon(
+                                            Icons.image_outlined,
+                                            size: 32,
+                                            color: AppColors.textSecondary.withOpacity(0.3),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),

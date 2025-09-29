@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../services/storage_service.dart';                  
 
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -27,12 +27,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   List<Category> categories = [];
   bool isLoading = false;
 
-  // 👇 Usamos un productId local para agrupar las fotos en Storage
-  String? _productId;
-  String _ensureProductId() {
-    _productId ??= 'prod_${DateTime.now().millisecondsSinceEpoch}';
-    return _productId!;
-  }
+String? _postId;
+String _ensurePostId() {
+  _postId ??= FirestoreService.generatePostId(); // 👈 robusto y en el service
+  return _postId!;
+}
+
 
   @override
   void initState() {
@@ -41,13 +41,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final cats = await MockService.getCategories(); // o FirestoreService.getCategories() si ya migraste
+    final cats = await FirestoreService.getCategories(); // o FirestoreService.getCategories() 
     setState(() {
       categories = cats;
     });
   }
 
-  // 👇 Abre sheet para elegir galería o cámara y sube a Storage
+  // Abre sheet para elegir galería o cámara y sube a Storage
   void _addImage() {
     if (imagePaths.length >= 5) return;
 
@@ -81,7 +81,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     );
   }
 
-  // 👇 Sube imagen (galería o cámara) y agrega el downloadURL a imagePaths
+  // Sube imagen (galería o cámara) y agrega el downloadURL a imagePaths
   Future<void> _pickAndUpload({required bool fromCamera}) async {
   try {
     final currentUser = auth.FirebaseAuth.instance.currentUser;
@@ -93,7 +93,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     final ownerUid = currentUser.uid;
-    final productId = _ensureProductId();
+    final productId = _ensurePostId();
 
     String? url;
     if (fromCamera) {
@@ -110,8 +110,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     if (!mounted) return;
     if (url != null) {
-      // ✅ Promoción a no-nulo antes del closure
-      final String downloadUrl = url;
+    final String downloadUrl = url;
       setState(() {
         imagePaths.add(downloadUrl); // List<String> ok
       });
@@ -128,7 +127,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 }
 
 
-  // 👇 Elimina del carrusel y del bucket
+  
   void _removeImage(int index) async {
     final url = imagePaths[index];
     setState(() {
@@ -137,64 +136,70 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     try {
       await StorageService.deleteByUrl(url);
     } catch (_) {
-      // opcional: mostrar snackbar si quieres advertir que no se pudo borrar del bucket
+    
     }
   }
 
   Future<void> _submitPost() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (imagePaths.isEmpty) {
+  if (!_formKey.currentState!.validate()) return;
+  if (imagePaths.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please add at least one image'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+    return;
+  }
+
+  setState(() => isLoading = true);
+
+  try {
+    final priceInCents = (double.parse(_priceController.text) * 100).toInt();
+
+    final user = await FirestoreService.getCurrentUser();
+    if (user == null) throw Exception('User not logged in');
+    final String postId = _postId ?? _ensurePostId();
+
+    final product = Post(
+      id: postId,
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
+      price: priceInCents,
+      status: 'active',
+      userId: user.id,
+      categoryId: 'category/$selectedCategory',
+      images: imagePaths, 
+      createdAt: DateTime.now(),
+    );
+
+    final data = product.toJson();
+    data['_id'] = postId; 
+
+    final success = await FirestoreService.createPost(data, forceId: postId);
+
+    if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please add at least one image'),
-          backgroundColor: AppColors.error,
+          content: Text('Product posted successfully!'),
+          backgroundColor: AppColors.success,
         ),
       );
-      return;
+      context.go('/home');
     }
-
-    setState(() => isLoading = true);
-
-    try {
-      final priceInCents = (double.parse(_priceController.text) * 100).toInt();
-      final user = await FirestoreService.getCurrentUser();
-      if (user == null) throw Exception('User not logged in');
-
-      final product = Post(
-        id: '', // si quieres que sea _productId, cámbialo y haz set en lugar de add
-        title: _titleController.text,
-        description: _descriptionController.text,
-        price: priceInCents,
-        status: 'active',
-        userId: user.id, // asegúrate que tus reglas usen el mismo campo (userId vs uid)
-        categoryId: 'category/$selectedCategory',
-        images: imagePaths, // ✅ links del bucket
-        createdAt: DateTime.now(),
-      );
-
-      final success = await FirestoreService.createPost(product.toJson());
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Product posted successfully!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        context.go('/home');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to post product: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to post product: $e'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  } finally {
+    if (mounted) setState(() => isLoading = false);
   }
+}
+
 
   @override
   void dispose() {

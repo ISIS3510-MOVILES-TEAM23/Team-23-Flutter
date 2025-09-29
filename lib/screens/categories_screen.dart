@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -19,7 +19,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   final Map<String, IconData> categoryIcons = {
     'electronics': Icons.devices_outlined,
     'books': Icons.menu_book_outlined,
-    'clothing': Icons.checkroom_outlined,
+    'clothes': Icons.checkroom_outlined,
     'furniture': Icons.chair_outlined,
     'school': Icons.backpack_outlined,
     'appliances': Icons.kitchen_outlined,
@@ -35,7 +35,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Future<void> _loadCategories() async {
     try {
-      final cats = await MockService.getCategories();
+      final cats = await FirestoreService.getCategories();
+      print('Loaded categories: ${cats.map((c) => 'ID: ${c.id}, Name: ${c.name}').join(', ')}'); // Debug
       setState(() {
         categories = cats;
         isLoading = false;
@@ -118,11 +119,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     itemCount: categories.length,
                     itemBuilder: (context, index) {
                       final category = categories[index];
-                      final icon = categoryIcons[category.id] ?? Icons.category_outlined;
+                      final icon = categoryIcons[category.name] ?? Icons.category_outlined;
                       
                       return InkWell(
                         onTap: () {
-                          context.go('/categories/${category.id}');
+                          print('Navigating to category: ${category.name} (ID: ${category.id})'); // Debug
+                          context.go('/categories/${category.name}');
                         },
                         child: Container(
                           margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
