@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
-import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
+import '../services/chat_service.dart';
+import '../services/storage_service.dart';
+import '../services/firestore_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
-  
+
   const ChatScreen({
     super.key,
     required this.chatId,
@@ -19,14 +21,14 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+
   List<ChatMessage> messages = [];
   User? currentUser;
   User? otherUser;
   Chat? conversation;
   Post? relatedProduct;
   bool isLoading = true;
-  String? uploadedImage;
+  String? uploadedImage; // URL del bucket para este mensaje
 
   @override
   void initState() {
@@ -36,46 +38,33 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadChatData() async {
     try {
-      // Load current user
-      final user = await MockService.getCurrentUser();
-      
-      // Load conversation
-      final convs = await MockService.getUserChats('u_current');
-      final conv = convs.firstWhere((c) => c.id == widget.chatId);
-      
-      // Load messages
-      final chatMessages = await MockService.getChatMessages(widget.chatId);
-      
-      // Get other user info
-      String otherUserId = conv.user1Id == 'u_current' 
-          ? conv.user2Id 
-          : conv.user1Id;
-      
-      final other = await MockService.getUserById('user/$otherUserId');
-      
-      // Try to load related product if exists
+      final me = await FirestoreService.getCurrentUser();
+      if (me == null) throw Exception('Not logged in');
+
+      final conv = await ChatService.fetchChatById(widget.chatId);
+      final msgs = await ChatService.fetchChatMessages(widget.chatId);
+
+      final otherUserId = (conv.user1Id == me.id) ? conv.user2Id : conv.user1Id;
+      final other = await FirestoreService.getUserById(otherUserId);
+
       Post? product;
-      if (chatMessages.isNotEmpty && chatMessages.first.postId != null) {
-        product = await MockService.getPostById(chatMessages.first.postId!.split('/').last);
+      if (msgs.isNotEmpty && msgs.first.postId != null) {
+        final postId = msgs.first.postId!.toString().split('/').last;
+        product = await FirestoreService.getPostById(postId);
       }
-      
+
       setState(() {
-        currentUser = user;
+        currentUser = me;
         otherUser = other;
         conversation = conv;
-        messages = chatMessages;
+        messages = msgs;
         relatedProduct = product;
         isLoading = false;
       });
-      
-      // Scroll to bottom after loading
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (_) {
+      setState(() => isLoading = false);
     }
   }
 
@@ -90,68 +79,123 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendMessage() async {
-    final messageText = _messageController.text.trim();
-    if (messageText.isEmpty && uploadedImage == null) return;
-    
-    // Create new message locally
-    final newMessage = ChatMessage(
-      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-      senderId: currentUser?.id ?? 'u_current',
-      receiverId: otherUser?.id ?? '',
-      content: messageText.isNotEmpty ? messageText : null,
+    final text = _messageController.text.trim();
+    if ((text.isEmpty) && (uploadedImage == null || uploadedImage!.isEmpty)) {
+      return;
+    }
+    if (currentUser == null || otherUser == null) return;
+
+    // Optimista en UI
+    final local = ChatMessage(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+      senderId: currentUser!.id,
+      receiverId: otherUser!.id,
+      content: text.isNotEmpty ? text : null,
       image: uploadedImage,
       sentAt: DateTime.now(),
       read: false,
     );
-    
     setState(() {
-      messages.add(newMessage);
+      messages.add(local);
       uploadedImage = null;
     });
-    
     _messageController.clear();
     _scrollToBottom();
-    
-    // Send to backend
-    await MockService.sendMessage(widget.chatId, messageText);
+
+    // Persistir
+    try {
+      await ChatService.sendMessage(
+        chatId: widget.chatId,
+        content: text.isNotEmpty ? text : null,
+        imageUrl: local.image,
+        postId: relatedProduct?.id,
+      );
+    } catch (e) {
+      // Revertir si quieres (opcional). Aquí solo notificamos.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo enviar: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
+  // Elegir imagen: galería o cámara → se sube al bucket y guardamos la URL en `uploadedImage`
   void _addImage() {
-    // Simulate image selection - only one image allowed per message
-    setState(() {
-      uploadedImage = 'https://picsum.photos/seed/${DateTime.now().millisecondsSinceEpoch}/400/400';
-    });
+    if (currentUser == null || otherUser == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardTheme.color,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Elegir de galería'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final url = await StorageService.uploadChatImageFromGallery(
+                    senderUid: currentUser!.id,
+                    chatId: widget.chatId,
+                    receiverUid: otherUser!.id,
+                    // Si quieres usar el username en la ruta, pásalo por pathUserSegment
+                    // pathUserSegment: currentUser!.name,
+                  );
+                  if (url != null && mounted) {
+                    setState(() => uploadedImage = url);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Tomar foto'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final url = await StorageService.uploadChatImageFromCamera(
+                    senderUid: currentUser!.id,
+                    chatId: widget.chatId,
+                    receiverUid: otherUser!.id,
+                    // pathUserSegment: currentUser!.name,
+                  );
+                  if (url != null && mounted) {
+                    setState(() => uploadedImage = url);
+                  }
+                },
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
+        );
+      },
+    );
   }
 
-  void _removeImage() {
-    setState(() {
-      uploadedImage = null;
-    });
-  }
+  void _removeImage() => setState(() => uploadedImage = null);
 
   void _initiateNfcTransaction() {
     if (relatedProduct == null) return;
-    
+
     context.push('/nfc-transaction', extra: {
       'productId': relatedProduct!.id,
       'sellerId': relatedProduct!.userId.split('/').last,
-      'buyerId': currentUser?.id ?? 'u_current',
+      'buyerId': currentUser?.id ?? '',
       'price': relatedProduct!.price,
-      'isSeller': relatedProduct!.userId.contains(currentUser?.id ?? 'u_current'),
+      'isSeller': relatedProduct!.userId.contains(currentUser?.id ?? ''),
     });
   }
 
-  String _formatTime(DateTime timestamp) {
-    final hour = timestamp.hour.toString().padLeft(2, '0');
-    final minute = timestamp.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
+  String _formatTime(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   String _getInitials(String name) {
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) {
       return parts[0].substring(0, 2).toUpperCase();
     }
     return 'U';
@@ -182,7 +226,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // User info header with profile picture and name
+          // Header con el otro usuario
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
@@ -196,7 +240,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Row(
               children: [
-                // Profile picture
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: AppColors.primaryColor.withOpacity(0.1),
@@ -210,7 +253,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Name only (removed status)
                 Expanded(
                   child: Text(
                     otherUser?.name ?? 'User',
@@ -223,8 +265,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-          
-          // Related product (if exists)
+
+          // Producto relacionado (opcional)
           if (relatedProduct != null)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -237,14 +279,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      relatedProduct!.images.isNotEmpty 
-                          ? relatedProduct!.images.first 
-                          : 'https://picsum.photos/seed/product/50/50',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                    ),
+                    child: relatedProduct!.images.isNotEmpty
+                        ? Image.network(
+                            relatedProduct!.images.first,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                          )
+                        : const SizedBox(width: 40, height: 40),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -273,8 +315,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          
-          // NFC Transaction Button (NEW)
+
           if (relatedProduct != null && relatedProduct!.status == 'active')
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -292,8 +333,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
-          
-          // Messages list with profile pictures
+
+          // Lista de mensajes
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -302,18 +343,19 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (context, index) {
                 final message = messages[index];
                 final isMe = message.senderId == currentUser?.id;
-                
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Row(
-                    mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                    mainAxisAlignment:
+                        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Other user's profile picture on the left
                       if (!isMe) ...[
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: AppColors.primaryColor.withOpacity(0.1),
+                          backgroundColor:
+                              AppColors.primaryColor.withOpacity(0.1),
                           child: Text(
                             _getInitials(otherUser?.name ?? 'U'),
                             style: const TextStyle(
@@ -325,8 +367,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      
-                      // Message bubble
                       Flexible(
                         child: Container(
                           constraints: BoxConstraints(
@@ -337,8 +377,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: isMe 
-                                ? AppColors.backgroundDark 
+                            color: isMe
+                                ? AppColors.backgroundDark
                                 : Theme.of(context).cardTheme.color,
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(16),
@@ -350,8 +390,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Image if any
-                              if (message.image != null && message.image!.isNotEmpty)
+                              if (message.image != null &&
+                                  message.image!.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: ClipRRect(
@@ -363,40 +403,38 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                   ),
                                 ),
-                              
-                              // Message text
-                              if (message.content != null && message.content!.isNotEmpty)
+                              if (message.content != null &&
+                                  message.content!.isNotEmpty)
                                 Text(
                                   message.content!,
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: isMe ? Colors.white : AppColors.textPrimary,
+                                    color: isMe
+                                        ? Colors.white
+                                        : AppColors.textPrimary,
                                   ),
                                 ),
-                              
                               const SizedBox(height: 4),
-                              
-                              // Time
                               Text(
                                 _formatTime(message.sentAt),
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isMe 
+                                  color: isMe
                                       ? Colors.white.withOpacity(0.7)
-                                      : AppColors.textSecondary.withOpacity(0.6),
+                                      : AppColors.textSecondary
+                                          .withOpacity(0.6),
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      
-                      // My profile picture on the right
                       if (isMe) ...[
                         const SizedBox(width: 8),
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: AppColors.primaryColor.withOpacity(0.1),
+                          backgroundColor:
+                              AppColors.primaryColor.withOpacity(0.1),
                           child: Text(
                             _getInitials(currentUser?.name ?? 'Me'),
                             style: const TextStyle(
@@ -413,8 +451,8 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          
-          // Image preview (only one image allowed)
+
+          // Previsualización de imagen (una por mensaje)
           if (uploadedImage != null)
             Container(
               height: 80,
@@ -453,8 +491,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          
-          // Input field with image button
+
+          // Input + adjuntar imagen + enviar
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -468,7 +506,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Row(
               children: [
-                // Add image button
                 IconButton(
                   icon: Icon(
                     Icons.add_photo_alternate_outlined,
@@ -476,8 +513,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   onPressed: _addImage,
                 ),
-                
-                // Message input
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -497,8 +532,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                
-                // Send button
                 Container(
                   decoration: const BoxDecoration(
                     color: AppColors.primaryColor,

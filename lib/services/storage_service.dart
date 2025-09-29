@@ -9,18 +9,99 @@ class StorageService {
 
   static final ImagePicker _picker = ImagePicker();
 
-  // Usa explícitamente el bucket del proyecto para evitar confusiones si hay varios
+  // Usa explícitamente el bucket del proyecto
   static final FirebaseStorage _storage = FirebaseStorage.instanceFor(
     bucket: DefaultFirebaseOptions.currentPlatform.storageBucket,
   );
 
-  // Reglas de validación locales (alineadas con tus Storage Rules)
   static const int _maxBytes = 5 * 1024 * 1024; // 5 MB
   static final RegExp _allowedExt =
       RegExp(r'\.(jpe?g|png)$', caseSensitive: false);
   static final RegExp _allowedMime =
       RegExp(r'^image/(jpeg|jpg|png)$', caseSensitive: false);
 
+ static Future<String?> uploadChatImageFromGallery({
+  required String senderUid,   // normalmente currentUser.uid
+  required String chatId,
+  required String receiverUid, // útil para reglas
+  String? pathUserSegment,     // opcional: usa username si quieres; por defecto senderUid
+}) async {
+  final x = await _picker.pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 1600,
+    imageQuality: 85,
+  );
+  if (x == null) return null;
+
+  return _uploadChatXFile(
+    senderUid: senderUid,
+    chatId: chatId,
+    receiverUid: receiverUid,
+    xfile: x,
+    pathUserSegment: (pathUserSegment?.trim().isNotEmpty ?? false)
+        ? pathUserSegment!.trim()
+        : senderUid,
+  );
+}
+
+static Future<String?> uploadChatImageFromCamera({
+  required String senderUid,
+  required String chatId,
+  required String receiverUid,
+  String? pathUserSegment,
+}) async {
+  final x = await _picker.pickImage(
+    source: ImageSource.camera,
+    maxWidth: 1600,
+    imageQuality: 85,
+  );
+  if (x == null) return null;
+
+  return _uploadChatXFile(
+    senderUid: senderUid,
+    chatId: chatId,
+    receiverUid: receiverUid,
+    xfile: x,
+    pathUserSegment: (pathUserSegment?.trim().isNotEmpty ?? false)
+        ? pathUserSegment!.trim()
+        : senderUid,
+  );
+}
+
+static Future<String> _uploadChatXFile({
+  required String senderUid,
+  required String chatId,
+  required String receiverUid,
+  required XFile xfile,
+  required String pathUserSegment, // p.ej. senderUid o username
+}) async {
+  final file = File(xfile.path);
+  final ext = _ext(xfile.path); // usa tu helper existente
+  final fileName = 'img_${DateTime.now().millisecondsSinceEpoch}$ext';
+
+  // Ruta: public/chats/{pathUserSegment}/{chatId}/{fileName}
+  final ref = _storage
+      .ref()
+      .child('public/chats/$pathUserSegment/$chatId/$fileName');
+
+  final metadata = SettableMetadata(
+    contentType: xfile.mimeType ?? 'image/jpeg',
+    customMetadata: {
+      'senderUid': senderUid,
+      'receiverUid': receiverUid,
+      'chatId': chatId,
+    },
+  );
+
+  final snap = await ref.putFile(file, metadata);
+  return await snap.ref.getDownloadURL();
+}
+
+// (Opcional) borrar una imagen de chat por URL
+static Future<void> deleteChatImageByUrl(String downloadUrl) async {
+  final ref = _storage.refFromURL(downloadUrl);
+  await ref.delete();
+}
   /// Abre la galería, sube al bucket y devuelve el downloadURL (o null si se cancela)
   static Future<String?> uploadFromGallery({
     required String ownerUid,

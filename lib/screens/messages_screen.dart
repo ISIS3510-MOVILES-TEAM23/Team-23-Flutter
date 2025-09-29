@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
-import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import '../services/chat_service.dart';
+
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -21,19 +23,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
     _loadConversations();
   }
 
-  Future<void> _loadConversations() async {
-    try {
-      final convs = await MockService.getUserChats('u_current');
-      setState(() {
-        conversations = convs;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-    }
+Future<void> _loadConversations() async {
+  try {
+    final uid = auth.FirebaseAuth.instance.currentUser!.uid;
+    final convs = await ChatService.fetchUserChats(uid);
+    setState(() {
+      conversations = convs;
+      isLoading = false;
+    });
+  } catch (e) {
+    setState(() => isLoading = false);
   }
+}
 
   String _formatTime(DateTime timestamp) {
     final now = DateTime.now();
