@@ -20,12 +20,13 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   List<Post> products = [];
   List<Category> categories = [];
   bool isLoading = true;
-  
+
   // Filter variables
   RangeValues priceRange = const RangeValues(0, 1000);
   String sortBy = 'newest';
-  
+
   String _formatDollars(int cents) => '\$' + (cents / 100).toStringAsFixed(2);
+  String get categoryName => widget.categoryId;
 
   @override
   void initState() {
@@ -35,9 +36,11 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
 
   Future<void> _loadData() async {
     try {
-      print('CategoryProductsScreen: Loading data for categoryId: ${widget.categoryId}'); // Debug
+      print(
+          'CategoryProductsScreen: Loading data for categoryId: ${widget.categoryId}'); // Debug
       final cats = await FirestoreService.getCategories();
-      print('CategoryProductsScreen: Loaded ${cats.length} categories'); // Debug
+      print(
+          'CategoryProductsScreen: Loaded ${cats.length} categories'); // Debug
       final prods = await FirestoreService.getPostsByCategory(
         widget.categoryId,
         filters: FilterOptions(
@@ -46,8 +49,9 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
           sortBy: sortBy,
         ),
       );
-      print('CategoryProductsScreen: Received ${prods.length} products'); // Debug
-      
+      print(
+          'CategoryProductsScreen: Received ${prods.length} products'); // Debug
+
       setState(() {
         categories = cats;
         products = prods;
@@ -128,15 +132,19 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('CategoryProductsScreen: Building with categoryId: ${widget.categoryId}'); // Debug
-    print('CategoryProductsScreen: Available categories: ${categories.map((c) => 'ID:${c.id}, Name:${c.name}').join(', ')}'); // Debug
-    
+    print(
+        'CategoryProductsScreen: Building with categoryId: ${widget.categoryId}'); // Debug
+    print(
+        'CategoryProductsScreen: Available categories: ${categories.map((c) => 'ID:${c.id}, Name:${c.name}').join(', ')}'); // Debug
+
     final category = categories.firstWhere(
       (c) => c.id == widget.categoryId || c.name == widget.categoryId,
-      orElse: () => Category(id: widget.categoryId, name: widget.categoryId, description: ''),
+      orElse: () => Category(
+          id: widget.categoryId, name: widget.categoryId, description: ''),
     );
-    
-    print('CategoryProductsScreen: Using category - ID: ${category.id}, Name: ${category.name}'); // Debug
+
+    print(
+        'CategoryProductsScreen: Using category - ID: ${category.id}, Name: ${category.name}'); // Debug
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -152,7 +160,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
               children: [
                 // Filter Section
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     children: [
                       // Price Range Filter
@@ -178,13 +187,15 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  priceRange.start == 0 && priceRange.end == 1000
+                                  priceRange.start == 0 &&
+                                          priceRange.end == 1000
                                       ? 'Price'
                                       : '\$${priceRange.start.round()}-\$${priceRange.end.round()}',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary.withOpacity(0.8),
+                                    color:
+                                        AppColors.textPrimary.withOpacity(0.8),
                                   ),
                                 ),
                               ],
@@ -193,7 +204,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      
+
                       // Sort Filter
                       Expanded(
                         child: Container(
@@ -245,7 +256,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      
+
                       // Clear Filters Button
                       InkWell(
                         onTap: () {
@@ -271,7 +282,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                     ],
                   ),
                 ),
-                
+
                 // Products Grid
                 Expanded(
                   child: products.isEmpty
@@ -297,7 +308,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                 'Try adjusting your filters',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: AppColors.textSecondary.withOpacity(0.7),
+                                  color:
+                                      AppColors.textSecondary.withOpacity(0.7),
                                 ),
                               ),
                             ],
@@ -305,7 +317,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         )
                       : GridView.builder(
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             mainAxisSpacing: 16,
                             crossAxisSpacing: 16,
@@ -317,11 +330,18 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                             final imageUrl = product.images.isNotEmpty
                                 ? product.images.first
                                 : 'https://picsum.photos/seed/${product.id}/300/300';
-                            
+
                             return InkWell(
                               onTap: () {
-                                print('Navigating to product: ${product.id} from category: ${widget.categoryId}'); // Debug
-                                context.go('/categories/${widget.categoryId}/product/${product.id}');
+                                print(
+                                    'Navigating to product: ${product.id} from category: ${widget.categoryId}'); // Debug
+                                FirestoreService.logProductSearchEvent(
+                                  source: 'category_chip',
+                                  selectedCategory: category.name,
+                                  suggestedCategories: [category.name],
+                                );
+                                context.go(
+                                    '/categories/${widget.categoryId}/product/${product.id}');
                               },
                               child: Container(
                                 decoration: BoxDecoration(
@@ -335,7 +355,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                     Expanded(
                                       flex: 3,
                                       child: ClipRRect(
-                                        borderRadius: const BorderRadius.vertical(
+                                        borderRadius:
+                                            const BorderRadius.vertical(
                                           top: Radius.circular(12),
                                         ),
                                         child: Container(
@@ -344,13 +365,16 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                           child: Image.network(
                                             imageUrl,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) {
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
                                               return Container(
-                                                color: Colors.grey.withOpacity(0.1),
+                                                color: Colors.grey
+                                                    .withOpacity(0.1),
                                                 child: Icon(
                                                   Icons.image_outlined,
                                                   size: 40,
-                                                  color: AppColors.textSecondary.withOpacity(0.3),
+                                                  color: AppColors.textSecondary
+                                                      .withOpacity(0.3),
                                                 ),
                                               );
                                             },
@@ -364,8 +388,10 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                       child: Padding(
                                         padding: const EdgeInsets.all(12),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             // Title
                                             Text(
@@ -384,7 +410,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w300,
-                                                color: AppColors.textPrimary.withOpacity(0.9),
+                                                color: AppColors.textPrimary
+                                                    .withOpacity(0.9),
                                               ),
                                             ),
                                           ],
