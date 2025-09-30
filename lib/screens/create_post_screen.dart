@@ -130,12 +130,12 @@ String _ensurePostId() {
 
     String? url;
     if (fromCamera) {
-      url = await StorageService.uploadFromCamera(
+      url = await StorageService().uploadFromCamera(
         ownerUid: ownerUid,
         productId: productId,
       );
     } else {
-      url = await StorageService.uploadFromGallery(
+      url = await StorageService().uploadFromGallery(
         ownerUid: ownerUid,
         productId: productId,
       );
@@ -167,7 +167,7 @@ String _ensurePostId() {
       imagePaths.removeAt(index);
     });
     try {
-      await StorageService.deleteByUrl(url);
+      await StorageService().deleteByUrl(url);
     } catch (_) {
     
     }

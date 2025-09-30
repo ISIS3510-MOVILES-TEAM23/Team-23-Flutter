@@ -5,14 +5,19 @@ import 'package:image_picker/image_picker.dart';
 import '../firebase_options.dart'; // generado por `flutterfire configure`
 
 class StorageService {
-  StorageService._();
+  StorageService._internal()
+      : _picker = ImagePicker(),
+        _storage = FirebaseStorage.instanceFor(
+          bucket: DefaultFirebaseOptions.currentPlatform.storageBucket,
+        );
 
-  static final ImagePicker _picker = ImagePicker();
+  static final StorageService _instance = StorageService._internal();
 
-  // Usa explícitamente el bucket del proyecto para evitar confusiones si hay varios
-  static final FirebaseStorage _storage = FirebaseStorage.instanceFor(
-    bucket: DefaultFirebaseOptions.currentPlatform.storageBucket,
-  );
+  factory StorageService() => _instance;
+
+  final ImagePicker _picker;
+
+  final FirebaseStorage _storage;
 
   // Reglas de validación locales (alineadas con tus Storage Rules)
   static const int _maxBytes = 5 * 1024 * 1024; // 5 MB
@@ -22,7 +27,7 @@ class StorageService {
       RegExp(r'^image/(jpeg|jpg|png)$', caseSensitive: false);
 
   /// Abre la galería, sube al bucket y devuelve el downloadURL (o null si se cancela)
-  static Future<String?> uploadFromGallery({
+  Future<String?> uploadFromGallery({
     required String ownerUid,
     required String productId,
   }) async {
@@ -36,7 +41,7 @@ class StorageService {
   }
 
   /// Abre la cámara, sube al bucket y devuelve el downloadURL (o null si se cancela)
-  static Future<String?> uploadFromCamera({
+  Future<String?> uploadFromCamera({
     required String ownerUid,
     required String productId,
   }) async {
@@ -50,13 +55,13 @@ class StorageService {
   }
 
   /// Borra un archivo en Storage a partir del downloadURL
-  static Future<void> deleteByUrl(String downloadUrl) async {
+  Future<void> deleteByUrl(String downloadUrl) async {
     final ref = _storage.refFromURL(downloadUrl);
     await ref.delete();
   }
 
   /// Método genérico para subir una imagen desde un File
-  static Future<String?> uploadImage(
+  Future<String?> uploadImage(
     File file,
     String folder,
   ) async {
@@ -81,7 +86,7 @@ class StorageService {
 
   // ------------------- internos -------------------
 
-  static Future<String> _uploadXFile({
+  Future<String> _uploadXFile({
     required String ownerUid,
     required String productId,
     required XFile xfile,
