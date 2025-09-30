@@ -55,6 +55,30 @@ class StorageService {
     await ref.delete();
   }
 
+  /// Método genérico para subir una imagen desde un File
+  static Future<String?> uploadImage(
+    File file,
+    String folder,
+  ) async {
+    try {
+      final String fileName = 'img_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String path = 'public/$folder/$fileName';
+      
+      final ref = _storage.ref().child(path);
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+      );
+      
+      final snap = await ref.putFile(file, metadata);
+      final url = await snap.ref.getDownloadURL();
+      
+      return url;
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
+  }
+
   // ------------------- internos -------------------
 
   static Future<String> _uploadXFile({

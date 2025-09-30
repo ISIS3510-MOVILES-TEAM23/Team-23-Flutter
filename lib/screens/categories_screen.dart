@@ -25,6 +25,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     'appliances': Icons.kitchen_outlined,
     'sports': Icons.sports_basketball_outlined,
     'music': Icons.music_note_outlined,
+    'other': Icons.category_outlined,
   };
 
   @override
@@ -41,7 +42,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         categories = cats;
         isLoading = false;
       });
-    } catch (e) {
+      print('Categories state updated with ${cats.length} items');
+    } catch (e, st) {
+      print('⚠️ Error loading categories: $e');
+      print(st);
       setState(() {
         isLoading = false;
       });
@@ -50,6 +54,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('📱 CategoriesScreen build -> isLoading=$isLoading, items=${categories.length}');
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: isLoading
@@ -115,76 +120,95 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   ),
                   
                   // Categories list
-                  SliverList.builder(
-                    itemCount: categories.length,
-                    itemBuilder: (context, index) {
-                      final category = categories[index];
-                      final icon = categoryIcons[category.name] ?? Icons.category_outlined;
-                      
-                      return InkWell(
-                        onTap: () {
-                          print('Navigating to category: ${category.name} (ID: ${category.id})'); // Debug
-                          context.go('/categories/${category.name}');
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).cardTheme.color,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              // Icon
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryColor.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  icon,
-                                  size: 24,
-                                  color: AppColors.primaryColor,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              // Text
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      category.name,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      category.description,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.textPrimary.withOpacity(0.6),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Arrow
-                              Icon(
-                                Icons.chevron_right,
-                                color: AppColors.textSecondary.withOpacity(0.5),
-                                size: 20,
-                              ),
-                            ],
+                  if (categories.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 80),
+                        child: Center(
+                          child: Text(
+                            'No hay categorías disponibles',
+                            style: TextStyle(fontSize: 16),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final category = categories[index];
+                          final icon =
+                              categoryIcons[category.name.toLowerCase()] ?? Icons.category_outlined;
+                          print('Rendering category card -> ${category.id} / ${category.name}');
+
+                          return InkWell(
+                            onTap: () {
+                              print('Navigating to category: ${category.name} (ID: ${category.id})'); // Debug
+                              context.go('/categories/${category.name}');
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).cardTheme.color,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  // Icon
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryColor.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      icon,
+                                      size: 24,
+                                      color: AppColors.primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // Text
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          category.name,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          category.description.isNotEmpty
+                                              ? category.description
+                                              : 'Ver productos en ${category.name}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: AppColors.textPrimary.withOpacity(0.6),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Arrow
+                                  Icon(
+                                    Icons.chevron_right,
+                                    color: AppColors.textSecondary.withOpacity(0.5),
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: categories.length,
+                      ),
+                    ),
                   
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 20),

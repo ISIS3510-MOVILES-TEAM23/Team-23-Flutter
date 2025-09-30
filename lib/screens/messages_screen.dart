@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/chat_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/loading_shimmer.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -12,229 +14,268 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  List<Chat> conversations = [];
-  bool isLoading = true;
+  StreamSubscription<List<ProductChat>>? _subscription;
+  List<ProductChat> _chats = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadConversations();
+    _loadChats();
   }
 
-  Future<void> _loadConversations() async {
-    try {
-      final convs = await MockService.getUserChats('u_current');
-      setState(() {
-        conversations = convs;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-    }
+  void _loadChats() {
+    setState(() {
+      _isLoading = true;
+    });
+
+    _subscription?.cancel();
+    _subscription = ChatService.streamUserChats().listen(
+      (chats) {
+        if (mounted) {
+          setState(() {
+            _chats = chats;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        print('Error cargando chats: $error');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      },
+    );
   }
 
-  String _formatTime(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    
-    if (difference.inDays > 7) {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    _loadChats();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Messages'),
         centerTitle: true,
-        elevation: 0,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : conversations.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.message_outlined,
-                        size: 64,
-                        color: AppColors.textSecondary.withOpacity(0.5),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: _isLoading
+            ? const LoadingShimmer(width: double.infinity, height: 300)
+            : _chats.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No conversations yet',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Start a conversation from a product',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _chats.length,
+                    itemBuilder: (context, index) {
+                      final chat = _chats[index];
+                      return _buildChatTile(chat);
+                    },
+                  ),
+      ),
+    );
+  }
+
+  Widget _buildChatTile(ProductChat chat) {
+    return InkWell(
+      onTap: () {
+        context.push(
+          '/chat',
+          extra: {
+            'chatId': chat.chatId,
+            'productId': chat.product.id,
+            'sellerId': chat.isBuyer ? chat.otherUser.id : '',
+          },
+        ).then((_) {
+          // Recargar chats al volver
+          _loadChats();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.grey[200]!,
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Avatar con imagen del producto
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundImage: chat.product.images.isNotEmpty
+                      ? NetworkImage(chat.product.images.first)
+                      : null,
+                  backgroundColor: Colors.grey[300],
+                  child: chat.product.images.isEmpty
+                      ? const Icon(Icons.shopping_bag, color: Colors.white)
+                      : null,
+                ),
+                // Indicador de mensajes no leídos
+                if (chat.unreadCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor,
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No messages yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: AppColors.textSecondary,
+                      constraints: const BoxConstraints(
+                        minWidth: 20,
+                        minHeight: 20,
+                      ),
+                      child: Text(
+                        chat.unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            // Información del chat
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          chat.otherUser.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      if (chat.updatedAt != null)
+                        Text(
+                          _formatTime(chat.updatedAt!),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Nombre del producto
+                  Text(
+                    chat.product.title,
+                    style: TextStyle(
+                      color: AppColors.primaryColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  // Último mensaje
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          chat.lastMessage ?? 'No messages yet',
+                          style: TextStyle(
+                            color: chat.unreadCount > 0
+                                ? Colors.black87
+                                : Colors.grey[600],
+                            fontWeight: chat.unreadCount > 0
+                                ? FontWeight.w500
+                                : FontWeight.normal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Precio del producto
                       Text(
-                        'Start a conversation by contacting a seller',
+                        '\$${chat.product.price.toStringAsFixed(0)}',
                         style: TextStyle(
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: AppColors.textSecondary.withOpacity(0.7),
                         ),
                       ),
                     ],
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadConversations,
-                  child: ListView.builder(
-                    itemCount: conversations.length,
-                    itemBuilder: (context, index) {
-                      final conversation = conversations[index];
-                      final otherPersonName = conversation.user1Id == 'u_current'
-                          ? conversation.user2Id
-                          : conversation.user1Id;
-                      final lastMessage = conversation.messages1.isNotEmpty 
-                          ? conversation.messages1.last 
-                          : null;
-                      final lastTime = lastMessage?.sentAt ?? DateTime.now();
-                      final isUnread = (lastMessage?.read == false) && 
-                          (lastMessage?.receiverId == 'u_current');
-                      
-                      return InkWell(
-                        onTap: () {
-                          context.go('/messages/chat/${conversation.id}');
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isUnread
-                                ? AppColors.primaryColor.withOpacity(0.05)
-                                : null,
-                            border: const Border(
-                              bottom: BorderSide(
-                                color: AppColors.borderColor,
-                                width: 0.5,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              // Product Image or User Avatar
-                              Stack(
-                                children: [
-                                  Container(
-                                    width: 60,
-                                    height: 60,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: AppColors.primaryColor.withOpacity(0.1),
-                                    ),
-                                    child: lastMessage?.postId != null
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
-                                            child: Image.network(
-                                              'https://picsum.photos/seed/chat${conversation.id}/100/100',
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return Icon(
-                                                  Icons.image_outlined,
-                                                  color: AppColors.primaryColor.withOpacity(0.5),
-                                                );
-                                              },
-                                            ),
-                                          )
-                                        : Icon(
-                                            Icons.person_outline,
-                                            size: 30,
-                                            color: AppColors.primaryColor.withOpacity(0.5),
-                                          ),
-                                  ),
-                                  if (isUnread)
-                                    Positioned(
-                                      top: -2,
-                                      right: -2,
-                                      child: Container(
-                                        width: 12,
-                                        height: 12,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primaryColor,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Theme.of(context).scaffoldBackgroundColor,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(width: 12),
-                              
-                              // Conversation Details
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            otherPersonName,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: isUnread
-                                                  ? FontWeight.bold
-                                                  : FontWeight.w600,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        Text(
-                                          _formatTime(lastTime),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: isUnread
-                                                ? AppColors.primaryColor
-                                                : AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      lastMessage?.content ?? 'No messages',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inDays > 365) {
+      return '${dateTime.year}';
+    } else if (difference.inDays > 30) {
+      return '${dateTime.day}/${dateTime.month}';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m';
+    } else {
+      return 'Ahora';
+    }
   }
 }
