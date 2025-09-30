@@ -37,7 +37,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Future<void> _loadCategories() async {
     try {
       final cats = await FirestoreService.getCategories();
-      print('Loaded categories: ${cats.map((c) => 'ID: ${c.id}, Name: ${c.name}').join(', ')}'); // Debug
+      print(
+          'Loaded categories: ${cats.map((c) => 'ID: ${c.id}, Name: ${c.name}').join(', ')}'); // Debug
       setState(() {
         categories = cats;
         isLoading = false;
@@ -54,7 +55,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('📱 CategoriesScreen build -> isLoading=$isLoading, items=${categories.length}');
+    print(
+        '📱 CategoriesScreen build -> isLoading=$isLoading, items=${categories.length}');
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: isLoading
@@ -68,9 +70,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     pinned: true,
                     centerTitle: true,
                     title: const Text('Marketplace'),
-                    backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+                    backgroundColor:
+                        Theme.of(context).appBarTheme.backgroundColor,
                   ),
-                  
+
                   // Search Bar
                   SliverToBoxAdapter(
                     child: Padding(
@@ -104,7 +107,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Categories title
                   const SliverToBoxAdapter(
                     child: Padding(
@@ -118,7 +121,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Categories list
                   if (categories.isEmpty)
                     const SliverToBoxAdapter(
@@ -138,12 +141,15 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         (context, index) {
                           final category = categories[index];
                           final icon =
-                              categoryIcons[category.name.toLowerCase()] ?? Icons.category_outlined;
-                          print('Rendering category card -> ${category.id} / ${category.name}');
+                              categoryIcons[category.name.toLowerCase()] ??
+                                  Icons.category_outlined;
+                          print(
+                              'Rendering category card -> ${category.id} / ${category.name}');
 
                           return InkWell(
                             onTap: () {
-                              print('Navigating to category: ${category.name} (ID: ${category.id})'); // Debug
+                              print(
+                                  'Navigating to category: ${category.name} (ID: ${category.id})'); // Debug
                               context.go('/categories/${category.name}');
                             },
                             child: Container(
@@ -159,7 +165,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primaryColor.withOpacity(0.08),
+                                      color: AppColors.primaryColor
+                                          .withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Icon(
@@ -172,7 +179,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                                   // Text
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           category.name,
@@ -189,7 +197,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                                               : 'Ver productos en ${category.name}',
                                           style: TextStyle(
                                             fontSize: 14,
-                                            color: AppColors.textPrimary.withOpacity(0.6),
+                                            color: AppColors.textPrimary
+                                                .withOpacity(0.6),
                                           ),
                                         ),
                                       ],
@@ -198,7 +207,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                                   // Arrow
                                   Icon(
                                     Icons.chevron_right,
-                                    color: AppColors.textSecondary.withOpacity(0.5),
+                                    color: AppColors.textSecondary
+                                        .withOpacity(0.5),
                                     size: 20,
                                   ),
                                 ],
@@ -209,7 +219,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         childCount: categories.length,
                       ),
                     ),
-                  
+
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 20),
                   ),

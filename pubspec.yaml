@@ -33,6 +33,8 @@ dependencies:
   
   # HTTP & API
   http: ^1.2.0
+  package_info_plus: ^8.0.0
+  uuid: ^4.4.0
   
   # Optional: For animations
   flutter_animate: ^4.5.0
