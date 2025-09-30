@@ -8,79 +8,90 @@ class FirestoreService {
   static final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
 
   static Future<List<Post>> getHighlightedPosts() async {
+    print('🔥 [FirestoreService] getHighlightedPosts() - inicio');
     final snapshot = await _db
         .collection('posts')
         .orderBy('created_at', descending: true)
         .limit(10)
         .get();
+    print('🔥 [FirestoreService] getHighlightedPosts() - documentos obtenidos: ${snapshot.docs.length}');
     // Filtrar por status en el cliente temporalmente
-    return snapshot.docs
+    final posts = snapshot.docs
         .map((doc) {
           final data = Map<String, dynamic>.from(doc.data());
           data['id'] = doc.id; // Asegurar que el ID se asigne
           data['_id'] = doc.id; // También asignar _id por si acaso
+          print('🔥 [FirestoreService] getHighlightedPosts() - crudo doc ${doc.id}: $data');
           final post = Post.fromJson(data);
-          print('HighlightedPost: ID=${post.id}, Title=${post.title}, DocID=${doc.id}'); // Debug
+          print('🔥 [FirestoreService] getHighlightedPosts() - post parsed ID=${post.id}, title="${post.title}", status=${post.status}, category=${post.categoryId}');
           return post;
         })
         .where((post) => post.status == 'active')
         .take(4)
         .toList();
+    print('🔥 [FirestoreService] getHighlightedPosts() - posts activos finales: ${posts.length}');
+    return posts;
   }
 
   static Future<List<Post>> getNewPosts() async {
+    print('🆕 [FirestoreService] getNewPosts() - inicio');
     final snapshot = await _db
         .collection('posts')
         .orderBy('created_at', descending: true)
         .limit(10)
         .get();
+    print('🆕 [FirestoreService] getNewPosts() - documentos obtenidos: ${snapshot.docs.length}');
     // Filtrar por status en el cliente temporalmente  
-    return snapshot.docs
+    final posts = snapshot.docs
         .map((doc) {
           final data = Map<String, dynamic>.from(doc.data());
           data['id'] = doc.id; // Asegurar que el ID se asigne
           data['_id'] = doc.id; // También asignar _id por si acaso
+          print('🆕 [FirestoreService] getNewPosts() - crudo doc ${doc.id}: $data');
           final post = Post.fromJson(data);
-          print('NewPost: ID=${post.id}, Title=${post.title}, DocID=${doc.id}'); // Debug
+          print('🆕 [FirestoreService] getNewPosts() - post parsed ID=${post.id}, title="${post.title}", status=${post.status}, category=${post.categoryId}');
           return post;
         })
         .where((post) => post.status == 'active')
         .take(5)
         .toList();
+    print('🆕 [FirestoreService] getNewPosts() - posts activos finales: ${posts.length}');
+    return posts;
   }
 
-  static Future<List<Category>> getCategories() async {
-    print('🔍 GETTING CATEGORIES - START'); // Debug
-    
-    // PASO 1: Obtener todas las categorías
+  static Future<List<Category>> getCategories({bool debug = false}) async {
+    if (debug) print('🔍 GETTING CATEGORIES - START');
+
     final snapshot = await _db.collection('categories').get();
-    print('📁 Found ${snapshot.docs.length} category documents in Firestore'); // Debug
-    
+    if (debug) print('📁 Found ${snapshot.docs.length} category documents in Firestore');
+
     final allCategories = snapshot.docs
         .map((doc) {
           final data = Map<String, dynamic>.from(doc.data());
           data['id'] = doc.id;
           data['_id'] = doc.id;
           final category = Category.fromJson(data);
-          print('📂 Category: ID="${category.id}", Name="${category.name}"'); // Debug
+          if (debug) print('📂 Category: ID="${category.id}", Name="${category.name}"');
           return category;
         })
         .toList();
 
-    // PASO 2: Obtener TODOS los posts para ver qué hay
-    final postsSnapshot = await _db.collection('posts').get();
-    print('📄 Found ${postsSnapshot.docs.length} post documents in Firestore'); // Debug
-    
-    for (final postDoc in postsSnapshot.docs) {
-      final postData = postDoc.data();
-      final categoryId = postData['category_id'] as String?;
-      final status = postData['status'] as String?;
-      final title = postData['title'] as String?;
-      print('📝 Post: Title="$title", category_id="$categoryId", status="$status"'); // Debug
+    if (debug) {
+      final postsSnapshot = await _db.collection('posts').get();
+      print('📄 Found ${postsSnapshot.docs.length} post documents in Firestore');
+      for (final postDoc in postsSnapshot.docs) {
+        final postData = postDoc.data();
+        final dynamic rawCategoryId = postData['category_id'];
+        final categoryId = rawCategoryId is DocumentReference
+            ? rawCategoryId.path
+            : rawCategoryId?.toString();
+        final status = postData['status']?.toString();
+        final title = postData['title']?.toString();
+        print('📝 Post: Title="$title", category_id="$categoryId", status="$status"');
+      }
+      print('✅ Returning ALL ${allCategories.length} categories for debugging');
     }
-    
-    // POR AHORA: Devolver TODAS las categorías sin filtrar para debug
-    print('✅ Returning ALL ${allCategories.length} categories for debugging'); // Debug
+
     return allCategories;
   }
 
@@ -117,14 +128,14 @@ class FirestoreService {
     print('📄 Found ${snapshot.docs.length} total posts in Firestore'); // Debug
     
     // PASO 3: Buscar AMBOS formatos - por ID y por nombre
-    final targetById = 'category/$actualCategoryDocId';  // category/c4
-    final targetByName = 'category/$categoryId';         // category/electronics
+    final targetById = 'categories/$actualCategoryDocId';
+    final targetByName = 'categories/$categoryId';
     print('🎯 Looking for posts with category_id="$targetById" OR "$targetByName"'); // Debug
     
     final filteredPosts = <Post>[];
     
     for (final doc in snapshot.docs) {
-      final data = Map<String, dynamic>.from(doc.data() as Map<String, dynamic>);
+      final data = Map<String, dynamic>.from(doc.data());
       data['id'] = doc.id;
       data['_id'] = doc.id;
       final post = Post.fromJson(data);
@@ -259,20 +270,11 @@ class FirestoreService {
         .toList();
   }
 
+  // DEPRECATED: Use ChatService.streamUserChats() instead
   static Future<List<Chat>> getUserChats(String userId) async {
-    // Obtener todos los chats y filtrar en el cliente
-    final snapshot = await _db.collection('chats').get();
-    final chats = snapshot.docs
-        .map((doc) {
-          final data = Map<String, dynamic>.from(doc.data());
-          data['id'] = doc.id;
-          data['_id'] = doc.id;
-          return Chat.fromJson(data);
-        })
-        .where((chat) => chat.user1Id == userId || chat.user2Id == userId)
-        .toList();
-
-    return chats;
+    // This method is deprecated as the Chat model has changed
+    // Use ChatService for all chat-related operations
+    return [];
   }
 
   static Future<List<ChatMessage>> getChatMessages(String chatId) async {

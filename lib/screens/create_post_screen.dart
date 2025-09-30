@@ -1,12 +1,11 @@
-import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:firebase_auth/firebase_auth.dart' as auth; 
-import '../services/storage_service.dart';                  
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/models.dart';
 import '../services/firestore_service.dart';
+import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -23,6 +22,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _priceController = TextEditingController();
 
   String? selectedCategory;
+  String? selectedCategoryName;
   List<String> imagePaths = []; // aquí guardamos los downloadURLs
   List<Category> categories = [];
   bool isLoading = false;
@@ -41,10 +41,43 @@ String _ensurePostId() {
   }
 
   Future<void> _loadCategories() async {
-    final cats = await FirestoreService.getCategories(); // o FirestoreService.getCategories() 
-    setState(() {
-      categories = cats;
-    });
+    try {
+    final cats = await FirestoreService.getCategories(debug: true);
+      cats.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      if (!mounted) return;
+      setState(() {
+        categories = cats;
+        if (selectedCategory == null && cats.isNotEmpty) {
+          selectedCategory = cats.first.id;
+          selectedCategoryName = cats.first.name;
+        } else if (selectedCategory != null) {
+          final match = cats.firstWhere(
+            (c) => c.id == selectedCategory,
+            orElse: () => cats.isNotEmpty
+                ? cats.first
+                : Category(id: '', name: '', description: ''),
+          );
+          if (match.id.isNotEmpty) {
+            selectedCategory = match.id;
+            selectedCategoryName = match.name;
+          } else {
+            selectedCategory = null;
+            selectedCategoryName = null;
+          }
+        }
+      });
+      print('CreatePostScreen: categories loaded (${cats.length})');
+    } catch (e, st) {
+      print('CreatePostScreen: error loading categories -> $e');
+      print(st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudieron cargar las categorías: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   // Abre sheet para elegir galería o cámara y sube a Storage
@@ -161,6 +194,10 @@ String _ensurePostId() {
     if (user == null) throw Exception('User not logged in');
     final String postId = _postId ?? _ensurePostId();
 
+    if (selectedCategory == null) {
+      throw Exception('Category not selected');
+    }
+
     final product = Post(
       id: postId,
       title: _titleController.text.trim(),
@@ -168,13 +205,17 @@ String _ensurePostId() {
       price: priceInCents,
       status: 'active',
       userId: user.id,
-      categoryId: 'category/$selectedCategory',
+      categoryId: 'categories/$selectedCategory',
       images: imagePaths, 
       createdAt: DateTime.now(),
     );
 
     final data = product.toJson();
     data['_id'] = postId; 
+    data['category_id'] = FirebaseFirestore.instance
+        .collection('categories')
+        .doc(selectedCategory);
+    data['category_name'] = selectedCategoryName ?? '';
 
     final success = await FirestoreService.createPost(data, forceId: postId);
 
@@ -531,8 +572,13 @@ String _ensurePostId() {
                           );
                         }).toList(),
                         onChanged: (value) {
+                          final matched = categories.firstWhere(
+                            (c) => c.id == value,
+                            orElse: () => Category(id: value ?? '', name: value ?? '', description: ''),
+                          );
                           setState(() {
                             selectedCategory = value;
+                            selectedCategoryName = matched.name;
                           });
                         },
                         validator: (value) {

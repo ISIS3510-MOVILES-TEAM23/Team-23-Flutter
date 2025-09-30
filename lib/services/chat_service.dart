@@ -1,224 +1,311 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
-
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../models/models.dart';
+import 'firestore_service.dart';
 
-class ChatService {
-  ChatService._();
+class ProductChat {
+  final String chatId;
+  final User otherUser;
+  final Post product;
+  final String? lastMessage;
+  final DateTime? updatedAt;
+  final int unreadCount;
+  final bool isBuyer;
 
-  static final _db = FirebaseFirestore.instance;
-  static final _auth = auth.FirebaseAuth.instance;
-
-  // Helpers para referencias reales
-  static DocumentReference<Map<String, dynamic>> _userRef(String uid) =>
-      _db.collection('users').doc(uid);
-
-  static DocumentReference<Map<String, dynamic>> _postRef(String postId) =>
-      _db.collection('posts').doc(postId);
-
-static Future<List<Chat>> fetchUserChats(String uid) async {
-  // Referencia del usuario actual
-  final myRef = _db.collection('users').doc(uid);
-
-  // Trae los chats donde el usuario es user_1_ref o user_2_ref
-  final res = await Future.wait([
-    _db.collection('chats').where('user_1_ref', isEqualTo: myRef).get(),
-    _db.collection('chats').where('user_2_ref', isEqualTo: myRef).get(),
-  ]);
-
-  final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[
-    ...res[0].docs,
-    ...res[1].docs,
-  ];
-
-  final chats = <Chat>[];
-
-  // Para cada chat, obtenemos el último mensaje (si existe) para mostrar en la lista
-  for (final d in docs) {
-    ChatMessage? last;
-
-    final lastSnap = await _db
-        .collection('chats')
-        .doc(d.id)
-        .collection('messages')
-        .orderBy('sent_at', descending: true)
-        .limit(1)
-        .get();
-
-    if (lastSnap.docs.isNotEmpty) {
-      final m = lastSnap.docs.first;
-      final md = m.data();
-
-      final senderRef = md['sender_ref'];
-      final receiverRef = md['receiver_ref'];
-      final postRef = md['post_ref'];
-      final ts = md['sent_at'];
-
-      last = ChatMessage(
-        id: m.id,
-        senderId: senderRef is DocumentReference ? senderRef.id : (senderRef?.toString().split('/').last ?? ''),
-        receiverId: receiverRef is DocumentReference ? receiverRef.id : (receiverRef?.toString().split('/').last ?? ''),
-        content: (md['content'] as String?)?.trim(),
-        image: md['image'] as String?,
-        // Guarda ruta completa o solo id, como prefieras:
-        postId: postRef is DocumentReference ? postRef.path : (postRef?.toString()),
-        sentAt: ts is Timestamp ? ts.toDate() : DateTime.now(),
-        read: (md['read'] as bool?) ?? false,
-      );
-    }
-
-    final data = d.data();
-    final u1Ref = data['user_1_ref'];
-    final u2Ref = data['user_2_ref'];
-
-    final u1 = u1Ref is DocumentReference ? u1Ref.id : (u1Ref?.toString().split('/').last ?? '');
-    final u2 = u2Ref is DocumentReference ? u2Ref.id : (u2Ref?.toString().split('/').last ?? '');
-
-    chats.add(
-      Chat(
-        id: d.id,
-        user1Id: u1,
-        user2Id: u2,
-        // tu modelo usa 'messages1' como lista; metemos solo el último para la vista de lista
-        messages1: last != null ? [last] : const [],
-      ),
-    );
-  }
-
-  // Ordena por el último mensaje (más reciente primero)
-  chats.sort((a, b) {
-    final aTs = a.messages1.isNotEmpty ? a.messages1.first.sentAt : DateTime.fromMillisecondsSinceEpoch(0);
-    final bTs = b.messages1.isNotEmpty ? b.messages1.first.sentAt : DateTime.fromMillisecondsSinceEpoch(0);
-    return bTs.compareTo(aTs);
+  ProductChat({
+    required this.chatId,
+    required this.otherUser,
+    required this.product,
+    this.lastMessage,
+    this.updatedAt,
+    this.unreadCount = 0,
+    required this.isBuyer,
   });
-
-  return chats;
 }
 
-  /// Crea el chat si no existe y devuelve el chatId
-  static Future<String> startChatIfNeeded({
-    required String otherUserId,
-    String? postId,
-  }) async {
-    final me = _auth.currentUser;
-    if (me == null) throw Exception('Not logged in');
+class ChatService {
+  static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static final FirebaseStorage _storage = FirebaseStorage.instance;
+  static final ImagePicker _picker = ImagePicker();
+  static final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
 
-    final myRef = _userRef(me.uid);
-    final theirRef = _userRef(otherUserId);
+  // Obtener o crear un chat para un producto
+  static Future<String> getOrCreateProductChat(String productId, String sellerId) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) throw StateError('User not authenticated');
+    
+    // You can't chat with yourself
+    if (currentUserId == sellerId) {
+      throw StateError('You cannot chat with yourself');
+    }
 
-    // Busca en ambos órdenes
-    final q1 = await _db
-        .collection('chats')
-        .where('user_1_ref', isEqualTo: myRef)
-        .where('user_2_ref', isEqualTo: theirRef)
-        .limit(1)
+    // Buscar chat existente
+    final existingChats = await _db.collection('chats')
+        .where('product_id', isEqualTo: productId)
+        .where('participant_ids', arrayContains: currentUserId)
         .get();
-    if (q1.docs.isNotEmpty) return q1.docs.first.id;
+    
+    // Filtrar para encontrar el chat con el vendedor correcto
+    for (final doc in existingChats.docs) {
+      final data = doc.data();
+      final participants = List<String>.from(data['participant_ids'] ?? []);
+      if (participants.contains(sellerId)) {
+        print('📱 Existing chat found: ${doc.id}');
+        return doc.id;
+      }
+    }
 
-    final q2 = await _db
-        .collection('chats')
-        .where('user_1_ref', isEqualTo: theirRef)
-        .where('user_2_ref', isEqualTo: myRef)
-        .limit(1)
-        .get();
-    if (q2.docs.isNotEmpty) return q2.docs.first.id;
-
-    // No existe: créalo
-    final chatId = _db.collection('chats').doc().id;
-    await _db.collection('chats').doc(chatId).set({
-      'user_1_ref': myRef,
-      'user_2_ref': theirRef,
+    // Crear nuevo chat
+    print('📱 Creating new chat for product: $productId');
+    final chatData = {
+      'buyer_id': currentUserId,
+      'seller_id': sellerId,
+      'product_id': productId,
+      'participant_ids': [currentUserId, sellerId],
+      'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
-      if (postId != null && postId.isNotEmpty) 'post_ref': _postRef(postId),
-    });
-    return chatId;
-  }
-
-  /// Cargar un chat por id (convierte refs a ids para tu modelo)
-  static Future<Chat> fetchChatById(String chatId) async {
-    final d = await _db.collection('chats').doc(chatId).get();
-    if (!d.exists) throw Exception('Chat not found');
-
-    final data = d.data()!;
-    final u1 = (data['user_1_ref'] as DocumentReference).id;
-    final u2 = (data['user_2_ref'] as DocumentReference).id;
-
-    return Chat(
-      id: d.id,
-      user1Id: u1,
-      user2Id: u2,
-      messages1: const [],
-    );
-  }
-
-  /// Mensajes de un chat (ordenados por sent_at)
-  static Future<List<ChatMessage>> fetchChatMessages(String chatId) async {
-    final snap = await _db
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .orderBy('sent_at')
-        .get();
-
-    return snap.docs.map((m) {
-      final md = m.data();
-      final senderRef = md['sender_ref'] as DocumentReference?;
-      final receiverRef = md['receiver_ref'] as DocumentReference?;
-      final postRef = md['post_ref'] as DocumentReference?;
-      final ts = md['sent_at'];
-
-      return ChatMessage(
-        id: m.id,
-        senderId: senderRef?.id ?? '',
-        receiverId: receiverRef?.id ?? '',
-        content: (md['content'] as String?)?.trim(),
-        image: md['image'] as String?,
-        postId: postRef?.path, // o postRef?.id si prefieres solo el id
-        sentAt: ts is Timestamp ? ts.toDate() : DateTime.now(),
-        read: (md['read'] as bool?) ?? false,
-      );
-    }).toList();
-  }
-
-  /// Enviar mensaje (texto y/o imagen). Guarda referencias reales.
-  static Future<void> sendMessage({
-    required String chatId,
-    String? content,
-    String? imageUrl,
-    String? postId,
-  }) async {
-    final me = _auth.currentUser;
-    if (me == null) throw Exception('Not logged in');
-
-    final chat = await _db.collection('chats').doc(chatId).get();
-    if (!chat.exists) throw Exception('Chat not found');
-
-    final data = chat.data()!;
-    final user1Ref = data['user_1_ref'] as DocumentReference;
-    final user2Ref = data['user_2_ref'] as DocumentReference;
-
-    final myRef = _userRef(me.uid);
-    final otherRef = (myRef.path == user1Ref.path) ? user2Ref : user1Ref;
-
-    // No permitimos mensajes vacíos
-    final hasText = content != null && content.trim().isNotEmpty;
-    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
-    if (!hasText && !hasImage) return;
-
-    final msg = <String, dynamic>{
-      'sender_ref': myRef,
-      'receiver_ref': otherRef,
-      'sent_at': FieldValue.serverTimestamp(),
-      'read': false,
-      if (hasText) 'content': content!.trim(),
-      if (hasImage) 'image': imageUrl,
-      if (postId != null && postId.isNotEmpty) 'post_ref': _postRef(postId),
+      'last_message': null,
+      'unread_count_buyer': 0,
+      'unread_count_seller': 0,
     };
 
-    await _db.collection('chats').doc(chatId).collection('messages').add(msg);
+    final chatRef = await _db.collection('chats').add(chatData);
+    print('📱 Chat created: ${chatRef.id}');
+    return chatRef.id;
+  }
 
-    await _db.collection('chats').doc(chatId).update({
-      'updated_at': FieldValue.serverTimestamp(),
+  // Stream de todos los chats del usuario actual
+  static Stream<List<ProductChat>> streamUserChats() {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) {
+      return Stream.value([]);
+    }
+
+    return _db.collection('chats')
+        .where('participant_ids', arrayContains: currentUserId)
+        .snapshots()
+        .asyncMap((snapshot) async {
+      print('📱 ChatService.streamUserChats -> docs=${snapshot.docs.length}');
+      
+      final futures = snapshot.docs.map((doc) async {
+        try {
+          final data = doc.data();
+          data['id'] = doc.id;
+          final chat = Chat.fromJson(data);
+          
+          print('  ↳ chat=${doc.id} buyer=${chat.buyerId} seller=${chat.sellerId} product=${chat.productId}');
+          
+          // Validar que los campos no estén vacíos
+          if (chat.buyerId.isEmpty || chat.sellerId.isEmpty || chat.productId.isEmpty) {
+            print('  ⚠️ Chat ${doc.id} has empty fields, skipping');
+            return null;
+          }
+          
+          // Determinar si el usuario actual es comprador o vendedor
+          final isBuyer = chat.buyerId == currentUserId;
+          final otherUserId = isBuyer ? chat.sellerId : chat.buyerId;
+          final unreadCount = isBuyer ? chat.unreadCountBuyer : chat.unreadCountSeller;
+          
+          // Cargar datos del otro usuario y del producto
+          final otherUser = await FirestoreService.getUserById(otherUserId);
+          final product = await FirestoreService.getPostById(chat.productId);
+          
+          if (product == null) {
+            print('  ⚠️ Product ${chat.productId} not found for chat ${doc.id}');
+            return null;
+          }
+          
+          return ProductChat(
+            chatId: doc.id,
+            otherUser: otherUser,
+            product: product,
+            lastMessage: chat.lastMessage,
+            updatedAt: chat.updatedAt,
+            unreadCount: unreadCount,
+            isBuyer: isBuyer,
+          );
+        } catch (e) {
+          print('  ⚠️ Error processing chat ${doc.id}: $e');
+          return null;
+        }
+      }).toList();
+
+      final results = await Future.wait(futures);
+      final validChats = results.where((chat) => chat != null).cast<ProductChat>().toList();
+      
+      // Ordenar por fecha de actualización
+      validChats.sort((a, b) {
+        final aTime = a.updatedAt ?? DateTime(2000);
+        final bTime = b.updatedAt ?? DateTime(2000);
+        return bTime.compareTo(aTime);
+      });
+      
+      return validChats;
     });
+  }
+
+  // Stream de mensajes de un chat específico
+  static Stream<List<ChatMessage>> streamChatMessages(String chatId) {
+    return _db.collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('sent_at', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      print('📱 ChatService.streamChatMessages($chatId) -> docs=${snapshot.docs.length}');
+      
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        data['_id'] = doc.id;
+        print('  ↳ message ${doc.id} sender=${data['sender_id']} content=${data['content']}');
+        return ChatMessage.fromJson(data);
+      }).toList();
+    });
+  }
+
+  // Obtener información del chat
+  static Future<Map<String, dynamic>> getChatInfo(String chatId) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) throw StateError('User not authenticated');
+
+    final chatDoc = await _db.collection('chats').doc(chatId).get();
+    if (!chatDoc.exists) throw StateError('Chat not found');
+
+    final data = chatDoc.data()!;
+    data['id'] = chatDoc.id;
+    final chat = Chat.fromJson(data);
+
+    // Determinar roles
+    final isBuyer = chat.buyerId == currentUserId;
+    final otherUserId = isBuyer ? chat.sellerId : chat.buyerId;
+    
+    // Cargar datos
+    final currentUser = await FirestoreService.getUserById(currentUserId);
+    final otherUser = await FirestoreService.getUserById(otherUserId);
+    final product = await FirestoreService.getPostById(chat.productId);
+    
+    if (product == null) {
+      throw StateError('Product not found');
+    }
+
+    return {
+      'chat': chat,
+      'currentUser': currentUser,
+      'otherUser': otherUser,
+      'product': product,
+      'isBuyer': isBuyer,
+    };
+  }
+
+  // Enviar mensaje
+  static Future<void> sendMessage({
+    required String chatId,
+    String? text,
+    String? imageUrl,
+  }) async {
+    if (text?.trim().isEmpty ?? true && imageUrl == null) return;
+
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) throw StateError('User not authenticated');
+
+    print('📱 Sending message in chat $chatId');
+
+    // Obtener información del chat para actualizar contadores
+    final chatDoc = await _db.collection('chats').doc(chatId).get();
+    if (!chatDoc.exists) throw StateError('Chat not found');
+    
+    final chatData = chatDoc.data()!;
+    final isBuyer = chatData['buyer_id'] == currentUserId;
+    
+    // Crear el mensaje
+    final messageData = {
+      'sender_id': currentUserId,
+      'content': text?.trim(),
+      'image': imageUrl,
+      'sent_at': FieldValue.serverTimestamp(),
+      'read': false,
+    };
+
+    // Añadir mensaje a la subcolección
+    await _db.collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .add(messageData);
+
+    // Actualizar el chat
+    final updateData = {
+      'last_message': text?.trim() ?? '[Imagen]',
+      'updated_at': FieldValue.serverTimestamp(),
+    };
+    
+    // Incrementar contador de no leídos para el receptor
+    if (isBuyer) {
+      updateData['unread_count_seller'] = FieldValue.increment(1);
+    } else {
+      updateData['unread_count_buyer'] = FieldValue.increment(1);
+    }
+
+    await _db.collection('chats').doc(chatId).update(updateData);
+    print('📱 Message sent successfully');
+  }
+
+  // Marcar mensajes como leídos
+  static Future<void> markMessagesAsRead(String chatId) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    print('📱 Marking messages as read in chat $chatId');
+    
+    // Obtener información del chat
+    final chatDoc = await _db.collection('chats').doc(chatId).get();
+    if (!chatDoc.exists) return;
+    
+    final chatData = chatDoc.data()!;
+    final isBuyer = chatData['buyer_id'] == currentUserId;
+    
+    // Resetear contador de no leídos
+    final updateData = isBuyer 
+        ? {'unread_count_buyer': 0}
+        : {'unread_count_seller': 0};
+    
+    await _db.collection('chats').doc(chatId).update(updateData);
+    
+    // Marcar mensajes individuales como leídos
+    final batch = _db.batch();
+    final unreadMessages = await _db.collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .where('read', isEqualTo: false)
+        .where('sender_id', isNotEqualTo: currentUserId)
+        .get();
+
+    for (final doc in unreadMessages.docs) {
+      batch.update(doc.reference, {'read': true});
+    }
+    
+    await batch.commit();
+  }
+
+  // Subir imagen
+  static Future<String?> pickAndUploadImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image == null) return null;
+
+      final file = File(image.path);
+      final fileName = 'chat_images/${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+      
+      final uploadTask = await _storage.ref(fileName).putFile(file);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      
+      return downloadUrl;
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
   }
 }

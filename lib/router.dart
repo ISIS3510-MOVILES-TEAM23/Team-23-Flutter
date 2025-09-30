@@ -29,6 +29,18 @@ final router = GoRouter(
       path: '/signup',
       builder: (context, state) => const SignupScreen(),
     ),
+    GoRoute(
+      path: '/chat',
+      name: 'chat-direct',
+      builder: (context, state) {
+        final args = state.extra as Map<String, String>? ?? {};
+        return ChatScreen(
+          chatId: args['chatId'] ?? '',
+          productId: args['productId'] ?? '',
+          sellerId: args['sellerId'] ?? '',
+        );
+      },
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainScaffold(navigationShell: navigationShell);
@@ -100,10 +112,16 @@ final router = GoRouter(
               builder: (context, state) => const MessagesScreen(),
               routes: [
                 GoRoute(
-                  path: 'chat/:conversationId',
-                  builder: (context, state) => ChatScreen(
-                    chatId: state.pathParameters['conversationId']!,
-                  ),
+                  path: 'chat',
+                  name: 'chat',
+                  builder: (context, state) {
+                    final args = state.extra as Map<String, String>? ?? {};
+                    return ChatScreen(
+                      chatId: args['chatId'] ?? '',
+                      productId: args['productId'] ?? '',
+                      sellerId: args['sellerId'] ?? '',
+                    );
+                  },
                 ),
               ],
             ),

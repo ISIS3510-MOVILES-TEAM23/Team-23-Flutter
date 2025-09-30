@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../services/firestore_service.dart';
+import '../services/chat_service.dart';
 import '../theme/app_colors.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -48,16 +50,40 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   void _initiateChat() async {
-    if (product == null) return;
+    if (product == null || seller == null) return;
     
-    // Create conversation and navigate to chat
-    final conversationId = await FirestoreService.createChat(
-      product!.id,
-      product!.userId,
-    );
+    // You can't chat with yourself
+    final currentUser = auth.FirebaseAuth.instance.currentUser;
+    if (currentUser?.uid == seller!.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot chat with yourself')),
+      );
+      return;
+    }
     
-    if (mounted) {
-      context.go('/messages/chat/$conversationId');
+    try {
+      // Crear o obtener el chat del producto
+      final chatId = await ChatService.getOrCreateProductChat(
+        product!.id,
+        seller!.id,
+      );
+      
+      if (mounted) {
+        context.push(
+          '/chat',
+          extra: {
+            'chatId': chatId,
+            'productId': product!.id,
+            'sellerId': seller!.id,
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error starting chat: $e')),
+        );
+      }
     }
   }
 
@@ -275,7 +301,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         : AppColors.textSecondary,
                   ),
                   child: Text(
-                    product!.status == 'active' ? 'Contact' : 'Unavailable',
+                    product!.status == 'active' ? 'Chat with seller' : 'Not available',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
