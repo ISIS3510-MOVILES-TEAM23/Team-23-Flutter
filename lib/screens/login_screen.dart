@@ -95,6 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
+              /*
               const SizedBox(height: 20),
               const Row(
                 children: [
@@ -119,6 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
+              */
               const SizedBox(height: 40),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
