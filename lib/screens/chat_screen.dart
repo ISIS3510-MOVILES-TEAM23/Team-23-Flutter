@@ -176,7 +176,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       
       // Subir imagen
-      final imageUrl = await StorageService.uploadImage(
+      final imageUrl = await StorageService().uploadImage(
         File(image.path),
         'chat_images',
       );

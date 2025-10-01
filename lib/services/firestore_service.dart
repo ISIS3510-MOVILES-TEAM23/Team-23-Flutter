@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:campus_marketplace/services/chat_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 
@@ -115,6 +119,169 @@ class FirestoreService {
     } catch (e) {
       print('⚠️ [FirestoreService] Error obtaining app version: $e');
       return 'unknown';
+    }
+  }
+
+  static Future<void> logAppStartTime({int? launchDurationMs}) async {
+    try {
+      final startTime = DateTime.now();
+      final appVersion = await _getAppVersion();
+      final sessionId = _ensureSessionId();
+      final userId = _auth.currentUser?.uid ?? 'anonymous';
+      
+      // Obtener información del dispositivo
+      final deviceInfoPlugin = DeviceInfoPlugin();
+      Map<String, dynamic> deviceInfo = {};
+      
+      if (kIsWeb) {
+        final webInfo = await deviceInfoPlugin.webBrowserInfo;
+        deviceInfo = {
+          'platform': 'web',
+          'browserName': webInfo.browserName.toString(),
+          'userAgent': webInfo.userAgent ?? 'unknown',
+          'operatingSystem': webInfo.platform ?? 'unknown',
+          'language': webInfo.language ?? 'unknown',
+          'vendor': webInfo.vendor ?? 'unknown',
+        };
+      } else if (Platform.isAndroid) {
+        final androidInfo = await deviceInfoPlugin.androidInfo;
+        deviceInfo = {
+          'platform': 'android',
+          'model': androidInfo.model,
+          'brand': androidInfo.brand,
+          'androidVersion': androidInfo.version.release,
+          'sdkInt': androidInfo.version.sdkInt,
+          'manufacturer': androidInfo.manufacturer,
+          'isPhysicalDevice': androidInfo.isPhysicalDevice,
+        };
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfoPlugin.iosInfo;
+        deviceInfo = {
+          'platform': 'ios',
+          'model': iosInfo.model,
+          'systemVersion': iosInfo.systemVersion,
+          'name': iosInfo.name,
+          'isPhysicalDevice': iosInfo.isPhysicalDevice,
+          'identifierForVendor': iosInfo.identifierForVendor ?? 'unknown',
+        };
+      }
+
+      // Obtener información adicional de la app
+      final packageInfo = _cachedPackageInfo ?? await PackageInfo.fromPlatform();
+      
+      final payload = <String, dynamic>{
+        'startTime': startTime.toIso8601String(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'launchDurationMs': launchDurationMs,
+        'appVersion': appVersion,
+        'appName': packageInfo.appName,
+        'packageName': packageInfo.packageName,
+        'buildNumber': packageInfo.buildNumber,
+        'sessionId': sessionId,
+        'userId': userId,
+        'deviceInfo': deviceInfo,
+        'timeZone': startTime.timeZoneName,
+        'timeZoneOffset': startTime.timeZoneOffset.inMinutes,
+      };
+
+      // 🚀 [FirestoreService] Logging app start time
+      await _db.collection('start-time').add(payload);
+    } catch (e, st) {
+      // ⚠️ [FirestoreService] Error logging app start time: $e
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAppStartTimeMetrics({
+    String? platform,
+    int? lastDays,
+  }) async {
+    try {
+      Query query = _db.collection('start-time');
+      
+      // Filtrar por plataforma si se especifica
+      if (platform != null) {
+        query = query.where('deviceInfo.platform', isEqualTo: platform);
+      }
+      
+      // Filtrar por fecha si se especifica
+      if (lastDays != null) {
+        final startDate = DateTime.now().subtract(Duration(days: lastDays));
+        query = query.where('timestamp', isGreaterThan: Timestamp.fromDate(startDate));
+      }
+      
+      final snapshot = await query.get();
+      
+      if (snapshot.docs.isEmpty) {
+        return {
+          'averageLaunchTimeMs': 0,
+          'minLaunchTimeMs': 0,
+          'maxLaunchTimeMs': 0,
+          'totalLaunches': 0,
+          'platformBreakdown': {},
+        };
+      }
+      
+      final launchTimes = <int>[];
+      final platformCounts = <String, int>{};
+      final platformTimes = <String, List<int>>{};
+      
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final launchTime = data['launchDurationMs'] as int?;
+        final devicePlatform = (data['deviceInfo'] as Map<String, dynamic>?)?['platform'] as String?;
+        
+        if (launchTime != null) {
+          launchTimes.add(launchTime);
+          
+          if (devicePlatform != null) {
+            platformCounts[devicePlatform] = (platformCounts[devicePlatform] ?? 0) + 1;
+            platformTimes[devicePlatform] ??= [];
+            platformTimes[devicePlatform]!.add(launchTime);
+          }
+        }
+      }
+      
+      // Calcular métricas generales
+      final averageTime = launchTimes.isEmpty 
+          ? 0 
+          : launchTimes.reduce((a, b) => a + b) / launchTimes.length;
+      final minTime = launchTimes.isEmpty 
+          ? 0 
+          : launchTimes.reduce((a, b) => a < b ? a : b);
+      final maxTime = launchTimes.isEmpty 
+          ? 0 
+          : launchTimes.reduce((a, b) => a > b ? a : b);
+      
+      // Calcular métricas por plataforma
+      final platformMetrics = <String, Map<String, dynamic>>{};
+      for (final entry in platformTimes.entries) {
+        final times = entry.value;
+        if (times.isNotEmpty) {
+          final avgTime = times.reduce((a, b) => a + b) / times.length;
+          platformMetrics[entry.key] = {
+            'averageLaunchTimeMs': avgTime.round(),
+            'launchCount': platformCounts[entry.key] ?? 0,
+          };
+        }
+      }
+      
+      return {
+        'averageLaunchTimeMs': averageTime.round(),
+        'minLaunchTimeMs': minTime,
+        'maxLaunchTimeMs': maxTime,
+        'totalLaunches': snapshot.docs.length,
+        'platformBreakdown': platformMetrics,
+      };
+    } catch (e) {
+      // ⚠️ [FirestoreService] Error getting app start time metrics: $e
+      return {
+        'error': e.toString(),
+        'averageLaunchTimeMs': 0,
+        'minLaunchTimeMs': 0,
+        'maxLaunchTimeMs': 0,
+        'totalLaunches': 0,
+        'platformBreakdown': {},
+      };
     }
   }
 
