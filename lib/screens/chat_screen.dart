@@ -119,86 +119,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _pickAndSendImage() async {
-    if (_chatId == null) return;
-    
-    final ImagePicker picker = ImagePicker();
-    
-    // Mostrar opciones de cámara o galería
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Wrap(
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Gallery'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _uploadImage(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera),
-                title: const Text('Camera'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _uploadImage(ImageSource.camera);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-  
-  Future<void> _uploadImage(ImageSource source) async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: source,
-        maxWidth: 1920,
-        maxHeight: 1920,
-        imageQuality: 85,
-      );
-      
-      if (image == null) return;
-      
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-      
-      // Subir imagen
-      final imageUrl = await StorageService().uploadImage(
-        File(image.path),
-        'chat_images',
-      );
-      
-      // Cerrar indicador
-      if (mounted) Navigator.pop(context);
-      
-      if (imageUrl != null) {
-        await ChatService.sendMessage(
-          chatId: _chatId!,
-          imageUrl: imageUrl,
-        );
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      print('Error sending image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sending image: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -335,11 +255,6 @@ class _ChatScreenState extends State<ChatScreen> {
             child: SafeArea(
               child: Row(
                 children: [
-                  IconButton(
-                      icon: const Icon(Icons.image),
-                      onPressed: _pickAndSendImage,
-                      color: AppColors.primaryColor,
-                  ),
                   Expanded(
                     child: TextField(
                       controller: _messageController,
