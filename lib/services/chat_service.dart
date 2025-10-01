@@ -8,26 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import '../models/models.dart';
 import 'firestore_service.dart';
 
-class ProductChat {
-  final String chatId;
-  final User otherUser;
-  final Post product;
-  final String? lastMessage;
-  final DateTime? updatedAt;
-  final int unreadCount;
-  final bool isBuyer;
-
-  ProductChat({
-    required this.chatId,
-    required this.otherUser,
-    required this.product,
-    this.lastMessage,
-    this.updatedAt,
-    this.unreadCount = 0,
-    required this.isBuyer,
-  });
-}
-
 class ChatService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final FirebaseStorage _storage = FirebaseStorage.instance;

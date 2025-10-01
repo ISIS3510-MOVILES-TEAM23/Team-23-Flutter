@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/models.dart';
-import '../services/chat_service.dart';
+import '../services/chat_api.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
 
@@ -36,6 +36,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = true;
   bool _isBuyer = true;
   String? _chatId;
+  final ChatApi _chat = ChatApi(); 
+  
 
   @override
   void initState() {
@@ -47,7 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       // Si no tenemos chatId, crearlo o obtenerlo
       if (widget.chatId.isEmpty) {
-        _chatId = await ChatService.getOrCreateProductChat(
+        _chatId = await _chat.getOrCreateProductChat(
           widget.productId,
           widget.sellerId,
         );
@@ -56,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       // Cargar información del chat
-      final chatInfo = await ChatService.getChatInfo(_chatId!);
+      final chatInfo = await _chat.getChatInfo(_chatId!);
       
       if (mounted) {
         setState(() {
@@ -68,7 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
 
         // Suscribirse a los mensajes
-        _messagesSub = ChatService.streamChatMessages(_chatId!).listen((messages) {
+        _messagesSub = _chat.streamChatMessages(_chatId!).listen((messages) {
           if (mounted) {
             setState(() {
               _messages = messages;
@@ -77,7 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
 
         // Marcar mensajes como leídos
-        ChatService.markMessagesAsRead(_chatId!);
+        _chat.markMessagesAsRead(_chatId!);
       }
     } catch (e) {
       print('Error initializing chat: $e');
@@ -107,7 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
     
     try {
-      await ChatService.sendMessage(
+      await _chat.sendMessage(
         chatId: _chatId!,
         text: text,
       );

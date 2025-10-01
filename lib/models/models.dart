@@ -331,6 +331,27 @@ class Chat {
   }
 }
 
+class ProductChat {
+  final String chatId;
+  final User otherUser;
+  final Post product;
+  final String? lastMessage;
+  final DateTime? updatedAt;
+  final int unreadCount;
+  final bool isBuyer;
+
+  ProductChat({
+    required this.chatId,
+    required this.otherUser,
+    required this.product,
+    this.lastMessage,
+    this.updatedAt,
+    this.unreadCount = 0,
+    required this.isBuyer,
+  });
+}
+
+
 class Sale {
   final String id; // maps from _id
   final String postId; // 'post/<id>'
