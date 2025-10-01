@@ -353,21 +353,21 @@ class Sale {
   factory Sale.fromJson(Map<String, dynamic> json) {
     return Sale(
       id: json['_id'] ?? json['id'],
-      postId: json['post_id'],
-      buyerId: json['buyer_id'],
-      sellerId: json['seller_id'],
+      postId: json['post_ref'].id,
+      buyerId: json['buyer_ref'].id,
+      sellerId: json['seller_ref'].id,
       price: json['price'] is int ? json['price'] : (json['price'] as num).toInt(),
       status: json['status'],
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: json['created_at'].toDate(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       '_id': id,
-      'post_id': postId,
-      'buyer_id': buyerId,
-      'seller_id': sellerId,
+      'post_ref': postId,
+      'buyer_ref': buyerId,
+      'seller_ref': sellerId,
       'price': price,
       'status': status,
       'created_at': createdAt.toIso8601String(),

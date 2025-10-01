@@ -7,16 +7,18 @@ import 'router.dart';
 import 'services/firestore_service.dart';
 import 'theme/app_colors.dart';
 
-final Future<FirebaseApp> firebaseInit =
-    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
 // Tiempo de inicio para medir duración del lanzamiento
 DateTime? _appStartTime;
 
 void main() async {
   _appStartTime = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
-  await firebaseInit;
+
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),

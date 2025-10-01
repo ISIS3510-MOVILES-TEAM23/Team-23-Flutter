@@ -1,7 +1,8 @@
+import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../models/models.dart';
-import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/product_card.dart';
 
@@ -25,9 +26,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final user = await MockService.getCurrentUser();
-      final products = await MockService.getUserPosts(user.id);
-      
+      final user = await FirestoreService.getCurrentUser();
+      List<Post> products = [];
+      if (user != null) {
+        products = await FirestoreService.getUserPosts(user.id);
+      }
       setState(() {
         currentUser = user;
         myProducts = products;
@@ -40,10 +43,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _updateProfile(
+      String? name, String? email, String? password) async {
+    if (currentUser == null) return;
+
+    try {
+      await FirestoreService.updateUserProfile(
+        userId: currentUser!.id,
+        name: name ?? currentUser!.name,
+        email: email ?? currentUser!.email,
+        password: password,
+      );
+      // Reload user data
+      await _loadUserData();
+    } catch (e) {
+      throw Exception('Failed to update profile: $e');
+    }
+  }
+
   void _showEditProfileDialog() {
     final nameController = TextEditingController(text: currentUser?.name);
     final emailController = TextEditingController(text: currentUser?.email);
-    
+    final passwordController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) {
@@ -85,13 +107,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton(
               onPressed: () {
                 // Save changes
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Profile updated successfully'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
+                try {
+                  _updateProfile(
+                    nameController.text,
+                    emailController.text,
+                    passwordController.text.isNotEmpty
+                        ? passwordController.text
+                        : null,
+                  );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Profile updated successfully'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to update profile: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
               },
               child: const Text('Save'),
             ),
@@ -128,7 +166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 30),
-            
+
             // Profile Photo, Name and Email - Centered
             Center(
               child: Column(
@@ -169,9 +207,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Edit Profile Button - Full Width
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -194,9 +232,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Sales Button - Full Width
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -222,9 +260,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 40),
-            
+
             // My Products Section
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
@@ -236,9 +274,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Products Grid
             if (myProducts.isEmpty)
               Center(
@@ -284,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                 },
               ),
-            
+
             const SizedBox(height: 20),
           ],
         ),

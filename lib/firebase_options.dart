@@ -53,10 +53,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBYKH-1bOFKmR33mFOUYj26lpRtX1QLmPU',
+    apiKey: 'AIzaSyB5j16PkEVBcDSu0DVPBZhEf9Sn6Zzr9RU',
     appId: '1:16019369694:android:1fedf0c1dca92f86df1c4f',
     messagingSenderId: '16019369694',
     projectId: 'isis3510-moviles-team23',
     storageBucket: 'isis3510-moviles-team23.firebasestorage.app',
   );
+
 }

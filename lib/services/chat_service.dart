@@ -1,8 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_auth/firebase_auth.dart' as auth;
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../models/models.dart';
 import 'firestore_service.dart';
 
@@ -74,6 +76,42 @@ class ChatService {
 
     final chatRef = await _db.collection('chats').add(chatData);
     print('📱 Chat created: ${chatRef.id}');
+    return chatRef.id;
+  }
+
+  static Future<String> getOrCreateChatByBuyerSellerProduct({
+    required String buyerId,
+    required String sellerId,
+    required String productId,
+  }) async {
+    // Buscar chat existente
+    final existingChats = await _db.collection('chats')
+        .where('product_id', isEqualTo: productId)
+        .where('buyer_id', isEqualTo: buyerId)
+        .where('seller_id', isEqualTo: sellerId)
+        .get();
+    
+    if (existingChats.docs.isNotEmpty) {
+      print('📱 Existing chat found: ${existingChats.docs.first.id}');
+      return existingChats.docs.first.id;
+    }
+
+    // Crear nuevo chat
+    print('📱 Creating new chat for product: $productId');
+    final chatData = {
+      'buyer_id': buyerId,
+      'seller_id': sellerId,
+      'product_id': productId,
+      'participant_ids': [buyerId, sellerId],
+      'created_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+      'last_message': null,
+      'unread_count_buyer': 0,
+      'unread_count_seller': 0,
+    };
+
+    final chatRef = await _db.collection('chats').add(chatData);
+    print('Chat created: ${chatRef.id}');
     return chatRef.id;
   }
 

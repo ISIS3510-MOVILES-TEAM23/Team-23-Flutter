@@ -1,7 +1,8 @@
+import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../models/models.dart';
-import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
 
 class SalesScreen extends StatefulWidget {
@@ -27,8 +28,8 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
 
   Future<void> _loadSalesData() async {
     try {
-      final user = await MockService.getCurrentUser();
-      final sales = await MockService.getUserPostsWithChats(user.id);
+      final user = await FirestoreService.getCurrentUser();
+      final sales = await FirestoreService.getUserPostsWithChats(user?.id ?? '');
       
       setState(() {
         allSales = sales;
@@ -370,7 +371,11 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                     flex: 1,
                     child: OutlinedButton(
                       onPressed: () {
-                        context.push('/messages/chat/${saleData.chatId}');
+                        context.push('/messages/chat', extra: {
+                          'chatId': saleData.chatId!,
+                          'productId': post.id,
+                          'sellerId': post.userId,
+                        });
                       },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
