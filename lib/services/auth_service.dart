@@ -9,7 +9,7 @@ class AuthService {
 
   AuthService() {
     _googleSignIn.initialize(
-      clientId: DefaultFirebaseOptions.android.androidClientId,
+      clientId: DefaultFirebaseOptions.currentPlatform.appId,
       serverClientId: '16019369694-1rc4jts6gl944cm0tan8508r670b8fsm.apps.googleusercontent.com'
     );
   }

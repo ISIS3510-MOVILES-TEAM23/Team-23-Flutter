@@ -1,3 +1,4 @@
+import 'package:campus_marketplace/services/chat_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -238,6 +239,24 @@ class FirestoreService {
     return Post.fromJson(data);
   }
 
+  static Future<List<Sale>> getSalesByPost(String postId) async {
+    print('Fetching sales for postId: $postId');
+    final postRef = _db.collection('posts').doc(postId);
+    final snapshot = await _db
+        .collection('sales')
+        .where('post_ref', isEqualTo: postRef)
+        .get();
+    if (snapshot.docs.isEmpty) return [];
+    print('Found ${snapshot.docs.length} sales for postId: $postId');
+    return snapshot.docs.map((doc) {
+      final data = Map<String, dynamic>.from(doc.data());
+      data['id'] = doc.id;
+      data['_id'] = doc.id;
+      print('Sale found: ${doc.id}');
+      return Sale.fromJson(data);
+    }).toList();
+  }
+
   static Future<User?> getCurrentUser() async {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return null;
@@ -267,6 +286,32 @@ class FirestoreService {
       await userDoc.set(newUser.toJson());
       return newUser;
     }
+  }
+
+  static Future<void> updateUserProfile({
+    required String userId,
+    required String name,
+    required String email,
+    String? password,
+  }) async {
+    final userDoc = _db.collection('users').doc(userId);
+    await userDoc.update({
+      'name': name,
+      'email': email,
+    });
+    if (password != null && password.isNotEmpty) {
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser != null && firebaseUser.uid == userId) {
+        try {
+          await firebaseUser.updatePassword(password);
+        } catch (e) {
+          print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Error updating password: $e');
+          // Handle password update errors (e.g., re-authentication required)
+        }
+        
+      }
+    }
+
   }
 
   static Future<User> getUserById(String userId) async {
@@ -432,5 +477,37 @@ class FirestoreService {
       print(e);
       return '';
     }
+  }
+
+  static Future<List<PostWithChat>> getUserPostsWithChats(String userId) async {
+    List<PostWithChat> postsWithChats = [];
+    try {
+      final products = await FirestoreService.getUserPosts(userId);
+      for (var post in products) {
+        print('Sales for post ${post.id}');
+        final sales = await FirestoreService.getSalesByPost(post.id);
+        if (sales.isEmpty) continue;
+        for (var sale in sales) {
+          print('Sale: ${sale.id}');
+          User buyer = await FirestoreService.getUserById(sale.buyerId);
+          print('Buyer: ${buyer.id}');
+          String chatId = await ChatService.getOrCreateChatByBuyerSellerProduct(
+              buyerId: buyer.id, sellerId: userId, productId: post.id);
+          print('Chat ID: $chatId');
+          postsWithChats.add(PostWithChat(
+            post: post,
+            chatId: chatId,
+            buyer: buyer,
+            sale: sale,
+          ));
+        }
+      }
+      print(postsWithChats);
+    } catch (e) {
+      print('Error fetching posts with chats: $e');
+      return postsWithChats;
+    }
+    print('is not working');
+    return postsWithChats;
   }
 }
