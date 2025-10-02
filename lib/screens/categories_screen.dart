@@ -75,7 +75,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   ),
 
                   // Search Bar
-                  SliverToBoxAdapter(
+                  /*SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                       child: Container(
@@ -107,6 +107,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       ),
                     ),
                   ),
+                  */
 
                   // Categories title
                   const SliverToBoxAdapter(

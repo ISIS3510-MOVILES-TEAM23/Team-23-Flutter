@@ -1,8 +1,12 @@
+import 'package:campus_marketplace/services/product_filters_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
+
+const double kNoMaxUsd = 100000000;
 
 class CategoryProductsScreen extends StatefulWidget {
   final String categoryId;
@@ -20,10 +24,12 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   List<Post> products = [];
   List<Category> categories = [];
   bool isLoading = true;
+  bool _categoryLogged = false;
 
   // Filter variables
-  RangeValues priceRange = const RangeValues(0, 1000);
+  RangeValues priceRange = const RangeValues(0, kNoMaxUsd);
   String sortBy = 'newest';
+  String statusFilter = 'active';
 
   String _formatDollars(int cents) => '\$' + (cents / 100).toStringAsFixed(2);
   String get categoryName => widget.categoryId;
@@ -36,77 +42,97 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
 
   Future<void> _loadData() async {
     try {
-      print(
-          'CategoryProductsScreen: Loading data for categoryId: ${widget.categoryId}'); // Debug
       final cats = await FirestoreService.getCategories();
-      print(
-          'CategoryProductsScreen: Loaded ${cats.length} categories'); // Debug
-      final prods = await FirestoreService.getPostsByCategory(
+
+      final prods = await ProductFiltersService.getPostsByCategory(
         widget.categoryId,
         filters: FilterOptions(
           minPrice: priceRange.start,
           maxPrice: priceRange.end,
-          sortBy: sortBy,
+          sortBy: sortBy, // 'newest' | 'price_low' | 'price_high'
         ),
+        statusParam: statusFilter,
       );
-      print(
-          'CategoryProductsScreen: Received ${prods.length} products'); // Debug
 
+      if (!mounted) return;
       setState(() {
         categories = cats;
         products = prods;
         isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+      if (!mounted) return;
+      setState(() => isLoading = false);
+    }
+    if (!_categoryLogged) {
+      _categoryLogged = true;
+      ProductFiltersService.logFilterUsed('category');
     }
   }
 
   void _showPriceRangeDialog() {
-    RangeValues tempRange = priceRange;
+    final startText =
+        (priceRange.start == 0) ? '' : priceRange.start.toStringAsFixed(0);
+    final endText =
+        (priceRange.end == kNoMaxUsd) ? '' : priceRange.end.toStringAsFixed(0);
+
+    final minCtrl = TextEditingController(text: startText);
+    final maxCtrl = TextEditingController(text: endText);
+    String? errorMsg;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Price Range'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RangeSlider(
-                values: tempRange,
-                min: 0,
-                max: 1000,
-                divisions: 20,
-                activeColor: AppColors.primaryColor,
-                labels: RangeLabels(
-                  '\$${tempRange.start.round()}',
-                  '\$${tempRange.end.round()}',
-                ),
-                onChanged: (values) {
-                  setDialogState(() {
-                    tempRange = values;
-                  });
-                },
-              ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '\$${tempRange.start.round()}',
-                    style: const TextStyle(fontSize: 14),
+                  // Min
+                  Expanded(
+                    child: TextField(
+                      controller: minCtrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Min',
+                        hintText: 'e.g. 10',
+                      ),
+                    ),
                   ),
-                  Text(
-                    '\$${tempRange.end.round()}',
-                    style: const TextStyle(fontSize: 14),
+                  const SizedBox(width: 12),
+                  // Max
+                  Expanded(
+                    child: TextField(
+                      controller: maxCtrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Max',
+                        hintText: 'e.g. 500',
+                      ),
+                    ),
                   ),
                 ],
               ),
+              if (errorMsg != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  errorMsg!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -116,10 +142,34 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
             ),
             TextButton(
               onPressed: () {
+                double? minUsd = _parseUsd(minCtrl.text);
+                double? maxUsd = _parseUsd(maxCtrl.text);
+
+                // Si ambas cajas vacías → sin filtro
+                if (minUsd == null && maxUsd == null) {
+                  setState(() {
+                    priceRange = const RangeValues(0, kNoMaxUsd);
+                  });
+                  Navigator.pop(context);
+                  _loadData();
+                  return;
+                }
+                minUsd ??= 0;
+                maxUsd ??= kNoMaxUsd;
+                if (minUsd < 0) minUsd = 0;
+                if (maxUsd <= 0) maxUsd = kNoMaxUsd;
+
+                if (minUsd > maxUsd) {
+                  final tmp = minUsd;
+                  minUsd = maxUsd;
+                  maxUsd = tmp;
+                }
+
                 setState(() {
-                  priceRange = tempRange;
+                  priceRange = RangeValues(minUsd!, maxUsd!);
                 });
                 Navigator.pop(context);
+                ProductFiltersService.logFilterUsed('price');
                 _loadData();
               },
               child: const Text('Apply'),
@@ -130,12 +180,34 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
     );
   }
 
+  double? _parseUsd(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    final normalized = t.replaceAll(',', '.');
+    return double.tryParse(normalized);
+  }
+
+  String _rangeLabel() {
+    if (priceRange.start == 0 && priceRange.end == kNoMaxUsd) return 'Price';
+
+    String fmt(double v) {
+      if (v >= 1000000) return '\$${(v / 1000000).toStringAsFixed(1)}M';
+      if (v >= 1000)
+        return '\$${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}k';
+      return '\$${v.round()}';
+    }
+
+    final start = fmt(priceRange.start);
+    final end = (priceRange.end == kNoMaxUsd) ? '∞' : fmt(priceRange.end);
+    return '$start - $end';
+  }
+
   @override
   Widget build(BuildContext context) {
     print(
-        'CategoryProductsScreen: Building with categoryId: ${widget.categoryId}'); // Debug
+        'CategoryProductsScreen: Building with categoryId: ${widget.categoryId}');
     print(
-        'CategoryProductsScreen: Available categories: ${categories.map((c) => 'ID:${c.id}, Name:${c.name}').join(', ')}'); // Debug
+        'CategoryProductsScreen: Available categories: ${categories.map((c) => 'ID:${c.id}, Name:${c.name}').join(', ')}');
 
     final category = categories.firstWhere(
       (c) => c.id == widget.categoryId || c.name == widget.categoryId,
@@ -144,7 +216,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
     );
 
     print(
-        'CategoryProductsScreen: Using category - ID: ${category.id}, Name: ${category.name}'); // Debug
+        'CategoryProductsScreen: Using category - ID: ${category.id}, Name: ${category.name}');
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -164,38 +236,37 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     children: [
-                      // Price Range Filter
+                      // Price Filter (TextFields dialog)
                       Expanded(
                         child: InkWell(
                           onTap: _showPriceRangeDialog,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
+                                horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
                               color: Theme.of(context).cardTheme.color,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.attach_money,
-                                  size: 18,
-                                  color: AppColors.textPrimary.withOpacity(0.7),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  priceRange.start == 0 &&
-                                          priceRange.end == 1000
-                                      ? 'Price'
-                                      : '\$${priceRange.start.round()}-\$${priceRange.end.round()}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                                Icon(Icons.attach_money,
+                                    size: 18,
                                     color:
-                                        AppColors.textPrimary.withOpacity(0.8),
+                                        AppColors.textPrimary.withOpacity(0.7)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _rangeLabel(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    softWrap: false,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textPrimary
+                                          .withOpacity(0.8),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -204,7 +275,35 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardTheme.color,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButton<String>(
+                            value: statusFilter,
+                            isExpanded: true,
+                            underline: const SizedBox(),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'active', child: Text('Active')),
+                              DropdownMenuItem(
+                                  value: 'sold', child: Text('Sold')),
+                              DropdownMenuItem(
+                                  value: 'reserved', child: Text('Reserved')),
+                              DropdownMenuItem(
+                                  value: 'all', child: Text('All')),
+                            ],
+                            onChanged: (value) {
+                              setState(() => statusFilter = value!);
+                              ProductFiltersService.logFilterUsed('status');
+                              _loadData();
+                            },
+                          ),
+                        ),
+                      ),
                       // Sort Filter
                       Expanded(
                         child: Container(
@@ -230,26 +329,15 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                             dropdownColor: Theme.of(context).cardTheme.color,
                             items: const [
                               DropdownMenuItem(
-                                value: 'newest',
-                                child: Text('Newest'),
-                              ),
+                                  value: 'newest', child: Text('Newest')),
                               DropdownMenuItem(
-                                value: 'price_low',
-                                child: Text('Price ↑'),
-                              ),
+                                  value: 'price_low', child: Text('Price ↑')),
                               DropdownMenuItem(
-                                value: 'price_high',
-                                child: Text('Price ↓'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'popular',
-                                child: Text('Popular'),
-                              ),
+                                  value: 'price_high', child: Text('Price ↓')),
                             ],
                             onChanged: (value) {
-                              setState(() {
-                                sortBy = value!;
-                              });
+                              setState(() => sortBy = value!);
+                              ProductFiltersService.logFilterUsed('sort');
                               _loadData();
                             },
                           ),
@@ -261,9 +349,11 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                       InkWell(
                         onTap: () {
                           setState(() {
-                            priceRange = const RangeValues(0, 1000);
+                            priceRange = const RangeValues(0, kNoMaxUsd);
                             sortBy = 'newest';
+                            statusFilter = 'active';
                           });
+                          ProductFiltersService.logFilterUsed('clear');
                           _loadData();
                         },
                         child: Container(
@@ -334,7 +424,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                             return InkWell(
                               onTap: () {
                                 print(
-                                    'Navigating to product: ${product.id} from category: ${widget.categoryId}'); // Debug
+                                    'Navigating to product: ${product.id} from category: ${widget.categoryId}');
                                 FirestoreService.logProductSearchEvent(
                                   source: 'category_chip',
                                   selectedCategory: category.name,
@@ -357,8 +447,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                       child: ClipRRect(
                                         borderRadius:
                                             const BorderRadius.vertical(
-                                          top: Radius.circular(12),
-                                        ),
+                                                top: Radius.circular(12)),
                                         child: Container(
                                           width: double.infinity,
                                           color: Colors.grey.withOpacity(0.1),
