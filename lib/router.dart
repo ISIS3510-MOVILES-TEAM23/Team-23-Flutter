@@ -14,6 +14,7 @@ import 'screens/profile_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/signup_screen.dart';
 import 'widgets/main_scaffold.dart';
+import 'screens/verification_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -28,6 +29,15 @@ final router = GoRouter(
     GoRoute(
       path: '/signup',
       builder: (context, state) => const SignupScreen(),
+    ),
+    GoRoute(
+      path: '/verification',
+      builder: (context, state) {
+        final extra = (state.extra as Map?) ?? {};
+        return VerificationScreen(
+          email: (extra['email'] as String?) ?? '',
+        );
+      },
     ),
     GoRoute(
       path: '/chat',
