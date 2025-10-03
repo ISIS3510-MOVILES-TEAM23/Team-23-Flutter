@@ -65,18 +65,6 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   Future<void> _loadData() async {
     try {
       final cats = await FirestoreService.getCategories();
-<<<<<<< Updated upstream
-
-      final prods = await ProductFiltersService.getPostsByCategory(
-        widget.categoryId,
-        filters: FilterOptions(
-          minPrice: priceRange.start,
-          maxPrice: priceRange.end,
-          sortBy: sortBy, // 'newest' | 'price_low' | 'price_high'
-        ),
-        statusParam: statusFilter,
-      );
-=======
       print(
           'CategoryProductsScreen: Loaded ${cats.length} categories'); // Debug
 
@@ -111,7 +99,6 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
 
       print(
           'CategoryProductsScreen: Received ${filteredPosts.length} products'); // Debug
->>>>>>> Stashed changes
 
       if (!mounted) return;
       setState(() {
