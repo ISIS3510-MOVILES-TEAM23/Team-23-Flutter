@@ -343,9 +343,9 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                 // Detail Button - 75% width
                 Expanded(
                   flex: 3,
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
                     onPressed: () {
-                      context.go('/home/product/${post.id}');
+                      context.push('/confirm_purchase');
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryColor,
@@ -355,8 +355,9 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'View Details',
+                    icon: const Icon(Icons.local_shipping_outlined, size: 20),
+                    label: const Text(
+                      'Complete Purchase',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
