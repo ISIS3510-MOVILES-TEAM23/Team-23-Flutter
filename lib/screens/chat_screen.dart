@@ -318,7 +318,11 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(width: 12),
             ElevatedButton.icon(
-              onPressed: () => context.push('/confirm_purchase'),
+              onPressed: () => context.push('/confirm_purchase', extra: {
+                'role': 'buyer',
+                'postId': widget.productId,
+                'buyerId': _currentUser?.id,
+              }),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryColor,
                 foregroundColor: AppColors.textLight,

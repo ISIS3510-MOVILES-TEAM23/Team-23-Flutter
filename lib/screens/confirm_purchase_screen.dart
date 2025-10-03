@@ -18,8 +18,8 @@ class ConfirmPurchaseScreen extends StatefulWidget {
 class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   final BleService _bleService = BleService();
   String _role = 'Buyer'; // 'Buyer' or 'Seller'
-  final TextEditingController _postIdController = TextEditingController();
-  final TextEditingController _userIdController = TextEditingController();
+  String? _postId;
+  String? _buyerId;
   bool _isAdvertising = false;
   bool _isScanning = false;
   String _statusText = 'Not started';
@@ -32,6 +32,25 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
     super.initState();
     _requestPermissions();
     _getDeviceName();
+    _setInitialRole();
+  }
+
+  void _setInitialRole() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = GoRouterState.of(context);
+      final extra = state.extra as Map<String, dynamic>?;
+      if (extra != null) {
+        setState(() {
+          _role = extra['role'] == 'seller' ? 'Seller' : 'Buyer';
+          _postId = extra['postId'];
+          _buyerId = extra['buyerId'];
+        });
+      } else {
+        setState(() {
+          _role = 'Buyer';
+        });
+      }
+    });
   }
 
   Future<void> _getDeviceName() async {
@@ -57,31 +76,22 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
     }
   }
 
-  void _toggleRole(String role) {
-    setState(() {
-      _role = role;
-      _statusText = 'Not started';
-      _isAdvertising = false;
-      _isScanning = false;
-      _discoveredDevices.clear();
-      _selectedDevice = null;
-    });
-  }
-
   void _startAdvertising() async {
-    final postId = _postIdController.text.trim();
-    final userId = _userIdController.text.trim();
-    if (postId.isEmpty || userId.isEmpty) {
+    final postId = _postId;
+    final userId = _buyerId;
+    if (postId == null || postId.isEmpty || userId == null || userId.isEmpty) {
       setState(() {
-        _statusText = 'Enter postId and userId';
+        _statusText = 'Missing postId or buyerId from navigation';
       });
       return;
     }
     await _bleService.startAdvertising(postId, userId, () {
-      setState(() {
-        _isAdvertising = false;
-        _statusText = 'Not advertising';
-      });
+      if (mounted) {
+        setState(() {
+          _isAdvertising = false;
+          _statusText = 'Not advertising';
+        });
+      }
     });
     setState(() {
       _isAdvertising = true;
@@ -91,19 +101,23 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
 
   void _stopAdvertising() async {
     await _bleService.stopAdvertising(() {
-      setState(() {
-        _isAdvertising = false;
-        _statusText = 'Not advertising';
-      });
+      if (mounted) {
+        setState(() {
+          _isAdvertising = false;
+          _statusText = 'Not advertising';
+        });
+      }
     });
   }
 
   void _startScanning() {
     _bleService.startScanning(
       (id, name, data) {
-        setState(() {
-          _discoveredDevices[id] = {'name': name, 'data': data};
-        });
+        if (mounted) {
+          setState(() {
+            _discoveredDevices[id] = {'name': name, 'data': data};
+          });
+        }
         debugPrint('Discovered Device: $name ($id)');
       },
     );
@@ -130,6 +144,13 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
     } else {
       router.go('/profile');
     }
+  }
+
+  @override
+  void dispose() {
+    _bleService.stopScanning();
+    _bleService.stopAdvertising(null);
+    super.dispose();
   }
 
   @override
@@ -181,84 +202,58 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
-              if (_selectedDevice != null) ...[
-                Builder(
-                  builder: (context) {
-                    final data = _discoveredDevices[_selectedDevice!]!['data'] as Uint8List;
-                    final decoded = _bleService.decodeManufacturerData(data);
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondaryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        decoded != null
-                            ? 'Selected Device: Post ID: ${decoded['postId']}, User ID: ${decoded['userId']}'
-                            : 'Selected Device: Unable to decode data',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.secondaryColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-              ],
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'Buyer', label: Text('Buyer')),
-                  ButtonSegment(value: 'Seller', label: Text('Seller')),
-                ],
-                selected: {_role},
-                onSelectionChanged: (Set<String> selected) {
-                  _toggleRole(selected.first);
-                },
-              ),
               const SizedBox(height: 24),
-              if (_role == 'Buyer') ...[
-                TextField(
-                  controller: _postIdController,
-                  decoration: const InputDecoration(labelText: 'Post ID'),
-                ),
-                TextField(
-                  controller: _userIdController,
-                  decoration: const InputDecoration(labelText: 'User ID'),
-                ),
-                const SizedBox(height: 16),
-                Row(
+              if (_role == 'Seller') ...[
+                Column(
                   children: [
-                    ElevatedButton(
-                      onPressed: _isAdvertising ? null : _startAdvertising,
-                      child: const Text('Start Advertising'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isAdvertising ? null : _startAdvertising,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Start Advertising'),
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: _isAdvertising ? _stopAdvertising : null,
-                      child: const Text('Stop Advertising'),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isAdvertising ? _stopAdvertising : null,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Stop Advertising'),
+                      ),
                     ),
                   ],
                 ),
               ] else ...[
-                Row(
+                Column(
                   children: [
-                    ElevatedButton(
-                      onPressed: _isScanning ? null : _startScanning,
-                      child: const Text('Start Scan'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isScanning ? null : _startScanning,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Start Scan'),
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: _isScanning ? _stopScanning : null,
-                      child: const Text('Stop Scan'),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isScanning ? _stopScanning : null,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Stop Scan'),
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Results are printed to console.',
-                  style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -296,7 +291,19 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                                     final decoded = _bleService.decodeManufacturerData(data);
                                     if (decoded != null) {
                                       debugPrint('Decoded: postId=${decoded['postId']}, userId=${decoded['userId']}');
+                                      // For seller: check if the decoded data matches expected postId and buyerId
+                                      debugPrint('Expected: postId=$_postId, buyerId=$_buyerId');
+                                      if (_role == 'Buyer' && _postId != null && _buyerId != null) {
+                                        final matches = decoded['postId'] == _postId && decoded['userId'] == _buyerId;
+                                        setState(() {
+                                          _statusText = matches
+                                              ? 'Device matches! Ready to confirm purchase.'
+                                              : 'Device does not match the expected buyer.';
+                                        });
+                                      }
                                     }
+                                  } else {
+                                    _statusText = 'Not scanning';
                                   }
                                 });
                               },
@@ -306,9 +313,12 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                 ),
               ],
               const SizedBox(height: 16),
-              Text(
-                _statusText,
-                style: textTheme.bodyMedium?.copyWith(color: AppColors.primaryColor),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  _statusText,
+                  style: textTheme.bodyMedium?.copyWith(color: AppColors.primaryColor),
+                ),
               ),
             ],
           ),

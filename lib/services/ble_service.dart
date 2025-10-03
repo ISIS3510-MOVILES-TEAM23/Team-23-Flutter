@@ -56,7 +56,7 @@ class BleService {
   // Buyer (Advertising)
   Future<void> startAdvertising(
       String postId, String userId, VoidCallback onStop) async {
-    final payload = 'test|test';
+    final payload = '$postId|$userId';
     final data = utf8.encode(payload);
 
     debugPrint(

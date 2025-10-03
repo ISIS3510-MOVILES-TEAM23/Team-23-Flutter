@@ -17,6 +17,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
   List<PostWithChat> allSales = [];
   List<PostWithChat> pendingSales = [];
   List<PostWithChat> completedSales = [];
+  User? user;
   bool isLoading = true;
 
   @override
@@ -28,7 +29,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
 
   Future<void> _loadSalesData() async {
     try {
-      final user = await FirestoreService.getCurrentUser();
+      user = await FirestoreService.getCurrentUser();
       final sales = await FirestoreService.getUserPostsWithChats(user?.id ?? '');
       
       setState(() {
@@ -345,7 +346,11 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                   flex: 3,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      context.push('/confirm_purchase');
+                      context.push('/confirm_purchase', extra: {
+                        'role': 'seller',
+                        'postId': saleData.post.id,
+                        'sellerId': user?.id ?? '',
+                      });
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryColor,
