@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
 import '../services/chat_api.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -318,11 +319,33 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(width: 12),
             ElevatedButton.icon(
-              onPressed: () => context.push('/confirm_purchase', extra: {
-                'role': 'buyer',
-                'postId': widget.productId,
-                'buyerId': _currentUser?.id,
-              }),
+              onPressed: () async {
+                if (_currentUser == null || _product == null) return;
+                
+                try {
+                  final saleId = await FirestoreService.createSale(
+                    postId: widget.productId,
+                    buyerId: _currentUser!.id,
+                    sellerId: _product!.userId,
+                    price: _product!.price,
+                  );
+                  
+                  if (saleId != null && mounted) {
+                    context.push('/confirm_purchase', extra: {
+                      'role': 'buyer',
+                      'postId': widget.productId,
+                      'buyerId': _currentUser!.id,
+                      'saleId': saleId,
+                    });
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error creating sale: $e')),
+                    );
+                  }
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryColor,
                 foregroundColor: AppColors.textLight,
