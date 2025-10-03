@@ -657,6 +657,19 @@ class FirestoreService {
       final buyerRef = _db.collection('users').doc(buyerId);
       final sellerRef = _db.collection('users').doc(sellerId);
 
+      // Check if a sale already exists for this post, buyer, and seller
+      final existingSales = await _db.collection('sales')
+          .where('post_ref', isEqualTo: postRef)
+          .where('buyer_ref', isEqualTo: buyerRef)
+          .where('seller_ref', isEqualTo: sellerRef)
+          .get();
+
+      if (existingSales.docs.isNotEmpty) {
+        final existingSaleId = existingSales.docs.first.id;
+        print('Sale already exists with ID: $existingSaleId');
+        return existingSaleId;
+      }
+
       final saleData = {
         'post_ref': postRef,
         'buyer_ref': buyerRef,
@@ -675,9 +688,7 @@ class FirestoreService {
       print('Error creating sale: $e');
       return null;
     }
-  }
-
-  static Future<bool> updateSaleStatus(String saleId, String status) async {
+  }  static Future<bool> updateSaleStatus(String saleId, String status) async {
     try {
       await _db.collection('sales').doc(saleId).update({
         'status': status,

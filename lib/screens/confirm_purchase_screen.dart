@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/ble_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class ConfirmPurchaseScreen extends StatefulWidget {
@@ -20,12 +21,15 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   String _role = 'Buyer'; // 'Buyer' or 'Seller'
   String? _postId;
   String? _buyerId;
+  String? _saleId;
   bool _isAdvertising = false;
   bool _isScanning = false;
   String _statusText = 'Not started';
   Map<String, Map<String, dynamic>> _discoveredDevices = {};
   String? _selectedDevice;
   String? _deviceName;
+  bool _isCompletingPurchase = false;
+  bool _purchaseCompleted = false;
 
   @override
   void initState() {
@@ -44,6 +48,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
           _role = extra['role'] == 'seller' ? 'Seller' : 'Buyer';
           _postId = extra['postId'];
           _buyerId = extra['buyerId'];
+          _saleId = extra['saleId'];
         });
       } else {
         setState(() {
@@ -143,6 +148,95 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
       router.pop();
     } else {
       router.go('/profile');
+    }
+  }
+
+  Future<void> _completePurchase() async {
+    if (_saleId == null || _isCompletingPurchase) return;
+
+    setState(() {
+      _isCompletingPurchase = true;
+      _statusText = 'Completing purchase...';
+    });
+
+    try {
+      final success = await FirestoreService.updateSaleStatus(_saleId!, 'completed');
+      if (success && mounted) {
+        setState(() {
+          _purchaseCompleted = true;
+          _isCompletingPurchase = false;
+          _statusText = 'Purchase completed successfully!';
+        });
+        
+        // Wait a bit to show the success message, then navigate
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          context.go('/profile');
+        }
+      } else if (mounted) {
+        setState(() {
+          _isCompletingPurchase = false;
+          _statusText = 'Failed to complete purchase. Please try again.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCompletingPurchase = false;
+          _statusText = 'Error completing purchase: $e';
+        });
+      }
+    }
+  }
+
+  Widget _buildStatusWidget(TextTheme textTheme) {
+    if (_isCompletingPurchase) {
+      return Column(
+        children: [
+          const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _statusText,
+            style: textTheme.bodyMedium?.copyWith(color: AppColors.primaryColor),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    } else if (_purchaseCompleted) {
+      return Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check,
+              color: Colors.white,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _statusText,
+            style: textTheme.bodyLarge?.copyWith(
+              color: Colors.green,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    } else {
+      return Text(
+        _statusText,
+        style: textTheme.bodyMedium?.copyWith(color: AppColors.primaryColor),
+        textAlign: TextAlign.center,
+      );
     }
   }
 
@@ -297,9 +391,14 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                                         final matches = decoded['postId'] == _postId && decoded['userId'] == _buyerId;
                                         setState(() {
                                           _statusText = matches
-                                              ? 'Device matches! Ready to confirm purchase.'
+                                              ? 'Device matches! Completing purchase...'
                                               : 'Device does not match the expected buyer.';
                                         });
+                                        
+                                        // Automatically complete purchase when devices match
+                                        if (matches && !_isCompletingPurchase && !_purchaseCompleted) {
+                                          _completePurchase();
+                                        }
                                       }
                                     }
                                   } else {
@@ -315,10 +414,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  _statusText,
-                  style: textTheme.bodyMedium?.copyWith(color: AppColors.primaryColor),
-                ),
+                child: _buildStatusWidget(textTheme),
               ),
             ],
           ),
