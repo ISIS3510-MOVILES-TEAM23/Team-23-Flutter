@@ -2,7 +2,9 @@ import 'package:campus_marketplace/services/product_filters_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+
 import '../models/models.dart';
+import '../services/filters_service.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
@@ -31,33 +33,77 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   String sortBy = 'newest';
   String statusFilter = 'active';
 
+  // Filters service
+  late FiltersContext filtersContext;
+
   String _formatDollars(int cents) => '\$' + (cents / 100).toStringAsFixed(2);
   String get categoryName => widget.categoryId;
 
   @override
   void initState() {
     super.initState();
+    filtersContext = FiltersContext(categoryId: widget.categoryId);
     _loadData();
+  }
+
+  void _setFilterService() {
+    switch (sortBy) {
+      case 'price_low':
+        filtersContext.setFilterService(PriceAscendingFilterService());
+        break;
+      case 'price_high':
+        filtersContext.setFilterService(PriceDescendingFilterService());
+        break;
+      case 'newest':
+      case 'popular':
+      default:
+        filtersContext.setFilterService(NoFilterService());
+        break;
+    }
   }
 
   Future<void> _loadData() async {
     try {
       final cats = await FirestoreService.getCategories();
+      print(
+          'CategoryProductsScreen: Loaded ${cats.length} categories'); // Debug
 
-      final prods = await ProductFiltersService.getPostsByCategory(
-        widget.categoryId,
-        filters: FilterOptions(
-          minPrice: priceRange.start,
-          maxPrice: priceRange.end,
-          sortBy: sortBy, // 'newest' | 'price_low' | 'price_high'
-        ),
-        statusParam: statusFilter,
+      // Find the actual category document ID
+      final category = cats.firstWhere(
+        (c) => c.id == widget.categoryId || c.name == widget.categoryId,
+        orElse: () => Category(id: widget.categoryId, name: widget.categoryId, description: ''),
       );
+
+      // Update filters context with correct category ID
+      filtersContext = FiltersContext(categoryId: category.id);
+      
+      // Set the appropriate filter service
+      _setFilterService();
+
+      // Get filtered posts using the filters service
+      List<Post> filteredPosts = await filtersContext.filter();
+
+      // Apply price range filter client-side if not default
+      if (priceRange.start > 0 || priceRange.end < 1000) {
+        filteredPosts = filteredPosts.where((post) {
+          final priceInDollars = post.price / 100.0;
+          return priceInDollars >= priceRange.start && priceInDollars <= priceRange.end;
+        }).toList();
+      }
+
+      // For "newest", sort by created_at descending
+      if (sortBy == 'newest') {
+        filteredPosts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      }
+      // For "popular", we could sort by some popularity metric, but for now keep as is
+
+      print(
+          'CategoryProductsScreen: Received ${filteredPosts.length} products'); // Debug
 
       if (!mounted) return;
       setState(() {
         categories = cats;
-        products = prods;
+        products = filteredPosts;
         isLoading = false;
       });
     } catch (e) {
@@ -331,9 +377,17 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                               DropdownMenuItem(
                                   value: 'newest', child: Text('Newest')),
                               DropdownMenuItem(
-                                  value: 'price_low', child: Text('Price ↑')),
+                                value: 'price_low',
+                                child: Text('Price low to high'),
+                              ),
                               DropdownMenuItem(
-                                  value: 'price_high', child: Text('Price ↓')),
+                                value: 'price_high',
+                                child: Text('Price high to low'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'popular',
+                                child: Text('Popular'),
+                              ),
                             ],
                             onChanged: (value) {
                               setState(() => sortBy = value!);
