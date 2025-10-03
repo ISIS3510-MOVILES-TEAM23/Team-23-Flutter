@@ -377,11 +377,6 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                               DropdownMenuItem(
                                   value: 'newest', child: Text('Newest')),
                               DropdownMenuItem(
-<<<<<<< Updated upstream
-                                  value: 'price_low', child: Text('Price ↑')),
-                              DropdownMenuItem(
-                                  value: 'price_high', child: Text('Price ↓')),
-=======
                                 value: 'price_low',
                                 child: Text('Price low to high'),
                               ),
@@ -393,7 +388,6 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                 value: 'popular',
                                 child: Text('Popular'),
                               ),
->>>>>>> Stashed changes
                             ],
                             onChanged: (value) {
                               setState(() => sortBy = value!);
