@@ -1,9 +1,7 @@
-import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-import '../models/models.dart';
 import '../theme/app_colors.dart';
+import '../view_models/sales_view_model.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -14,114 +12,94 @@ class SalesScreen extends StatefulWidget {
 
 class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  List<PostWithChat> allSales = [];
-  List<PostWithChat> pendingSales = [];
-  List<PostWithChat> completedSales = [];
-  bool isLoading = true;
+  late SalesViewModel viewModel;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadSalesData();
+    viewModel = SalesViewModel();
+    viewModel.loadSalesData();
   }
-
-  Future<void> _loadSalesData() async {
-    try {
-      final user = await FirestoreService.getCurrentUser();
-      final sales = await FirestoreService.getUserPostsWithChats(user?.id ?? '');
-      
-      setState(() {
-        allSales = sales;
-        pendingSales = sales.where((s) => 
-          s.sale?.status == 'pending' || 
-          s.sale?.status == 'acknowledged' ||
-          (s.sale == null && s.chatId != null)
-        ).toList();
-        completedSales = sales.where((s) => s.sale?.status == 'completed').toList();
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
-
-  String _formatDollars(int cents) => '\$' + (cents / 100).toStringAsFixed(2);
 
   @override
   void dispose() {
     _tabController.dispose();
+    viewModel.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('Sales'),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Statistics Section
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardTheme.color,
-                    border: const Border(
-                      bottom: BorderSide(color: AppColors.borderColor, width: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatItem('Total Products', allSales.length.toString()),
-                      _buildStatItem('Completed', completedSales.length.toString()),
-                      _buildStatItem('Pending', pendingSales.length.toString()),
-                    ],
-                  ),
-                ),
-                
-                // TabBar
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: AppColors.primaryColor,
-                    unselectedLabelColor: AppColors.textSecondary,
-                    indicatorColor: AppColors.primaryColor,
-                    tabs: [
-                      Tab(text: 'All (${allSales.length})'),
-                      Tab(text: 'Pending (${pendingSales.length})'),
-                      Tab(text: 'Completed (${completedSales.length})'),
-                    ],
-                  ),
-                ),
-                
-                // TabBarView
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildSalesList(allSales),
-                      _buildSalesList(pendingSales),
-                      _buildSalesList(completedSales),
-                    ],
-                  ),
-                ),
-              ],
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, child) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            title: const Text('Sales'),
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
             ),
+          ),
+          body: viewModel.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    // Statistics Section
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardTheme.color,
+                        border: const Border(
+                          bottom: BorderSide(color: AppColors.borderColor, width: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildStatItem('Total Products', viewModel.allSales.length.toString()),
+                          _buildStatItem('Completed', viewModel.completedSales.length.toString()),
+                          _buildStatItem('Pending', viewModel.pendingSales.length.toString()),
+                        ],
+                      ),
+                    ),
+                    
+                    // TabBar
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: AppColors.primaryColor,
+                        unselectedLabelColor: AppColors.textSecondary,
+                        indicatorColor: AppColors.primaryColor,
+                        tabs: [
+                          Tab(text: 'All (${viewModel.allSales.length})'),
+                          Tab(text: 'Pending (${viewModel.pendingSales.length})'),
+                          Tab(text: 'Completed (${viewModel.completedSales.length})'),
+                        ],
+                      ),
+                    ),
+                    
+                    // TabBarView
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildSalesList(viewModel.allSales),
+                          _buildSalesList(viewModel.pendingSales),
+                          _buildSalesList(viewModel.completedSales),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 
@@ -149,7 +127,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildSalesList(List<PostWithChat> sales) {
+  Widget _buildSalesList(List sales) {
     if (sales.isEmpty) {
       return Center(
         child: Column(
@@ -183,7 +161,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildSaleCard(PostWithChat saleData) {
+  Widget _buildSaleCard(saleData) {
     final post = saleData.post;
     final buyer = saleData.buyer;
     final status = saleData.sale?.status ?? 'pending';
@@ -263,7 +241,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            _formatDollars(post.price),
+                            viewModel.formatDollars(post.price),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -285,15 +263,15 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(status).withOpacity(0.1),
+                      color: viewModel.getStatusColor(status).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      _getStatusText(status),
+                      viewModel.getStatusText(status),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: _getStatusColor(status),
+                        color: viewModel.getStatusColor(status),
                       ),
                     ),
                   ),
@@ -398,33 +376,5 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
         ),
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return AppColors.success;
-      case 'canceled':
-        return AppColors.error;
-      case 'acknowledged':
-        return Colors.blue;
-      default:
-        return AppColors.warning;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'canceled':
-        return 'Canceled';
-      case 'acknowledged':
-        return 'In Progress';
-      case 'pending':
-        return 'Pending';
-      default:
-        return status;
-    }
   }
 }

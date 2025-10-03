@@ -43,11 +43,11 @@ final router = GoRouter(
       path: '/chat',
       name: 'chat-direct',
       builder: (context, state) {
-        final args = state.extra as Map<String, String>? ?? {};
+        final args = state.extra as Map<String, dynamic>? ?? {};
         return ChatScreen(
-          chatId: args['chatId'] ?? '',
-          productId: args['productId'] ?? '',
-          sellerId: args['sellerId'] ?? '',
+          chatId: args['chatId']?.toString() ?? '',
+          productId: args['productId']?.toString() ?? '',
+          sellerId: args['sellerId']?.toString() ?? '',
         );
       },
     ),
@@ -125,11 +125,11 @@ final router = GoRouter(
                   path: 'chat',
                   name: 'chat',
                   builder: (context, state) {
-                    final args = state.extra as Map<String, String>? ?? {};
+                    final args = state.extra as Map<String, dynamic>? ?? {};
                     return ChatScreen(
-                      chatId: args['chatId'] ?? '',
-                      productId: args['productId'] ?? '',
-                      sellerId: args['sellerId'] ?? '',
+                      chatId: args['chatId']?.toString() ?? '',
+                      productId: args['productId']?.toString() ?? '',
+                      sellerId: args['sellerId']?.toString() ?? '',
                     );
                   },
                 ),
