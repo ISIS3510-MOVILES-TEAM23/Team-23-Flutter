@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
+import '../services/on_campus_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/product_card.dart';
 
@@ -18,10 +21,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<Post> myProducts = [];
   bool isLoading = true;
 
+  // Campus status
+  late OnCampusService _onCampusService;
+  bool _isOnCampus = false;
+  StreamSubscription<bool>? _campusSubscription;
+
   @override
   void initState() {
     super.initState();
+    debugPrint('ProfileScreen initState called');
+    _onCampusService = OnCampusService(enableLogging: true);
+    debugPrint('OnCampusService created');
+    _initializeCampusStatus();
     _loadUserData();
+  }
+
+  Future<void> _initializeCampusStatus() async {
+    try {
+      debugPrint('Initializing campus status...');
+      final permissionStatus = await _onCampusService.ensurePermission();
+      debugPrint('Permission status: $permissionStatus');
+      if (permissionStatus == LocationPermissionStatus.granted) {
+        debugPrint('Permission granted, getting initial status...');
+        // Get initial status
+        _isOnCampus = await _onCampusService.isOnCampus();
+        debugPrint('Initial campus status: $_isOnCampus');
+        setState(() {});
+
+        // Listen for changes
+        debugPrint('Setting up stream listener...');
+        _campusSubscription = _onCampusService.watchOnCampus().listen((isOnCampus) {
+          debugPrint('Campus status changed to: $isOnCampus');
+          setState(() {
+            _isOnCampus = isOnCampus;
+          });
+        });
+        debugPrint('Stream listener set up');
+      } else {
+        debugPrint('Permission not granted: $permissionStatus');
+        // Show a message to the user about enabling permissions
+        if (permissionStatus == LocationPermissionStatus.deniedForever) {
+          debugPrint('🚗Permission denied forever - user needs to go to settings');
+          // You could show a dialog here asking user to go to settings
+        } else if (permissionStatus == LocationPermissionStatus.denied) {
+          debugPrint('Permission denied - will try to request again next time');
+        } else if (permissionStatus == LocationPermissionStatus.serviceDisabled) {
+          debugPrint('Location services are disabled - user needs to enable GPS');
+        }
+      }
+    } catch (e, stackTrace) {
+      // Handle error silently - campus status will remain false
+      debugPrint('Failed to initialize campus status: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -140,6 +192,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  void dispose() {
+    _campusSubscription?.cancel();
+    _onCampusService.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
@@ -192,6 +251,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 24,
                       fontWeight: FontWeight.w300,
                       letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Campus status badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _isOnCampus ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _isOnCampus ? Colors.green : Colors.red,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.location_on,
+                          size: 16,
+                          color: _isOnCampus ? Colors.green : Colors.red,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _isOnCampus ? 'On Campus' : 'Off Campus',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: _isOnCampus ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
