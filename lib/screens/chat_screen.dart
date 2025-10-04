@@ -1,15 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../models/models.dart';
-import '../services/mock_service.dart';
+import '../services/chat_api.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
-  
+  final String productId;
+  final String sellerId;
+
   const ChatScreen({
     super.key,
     required this.chatId,
+    required this.productId,
+    required this.sellerId,
   });
 
   @override
@@ -20,251 +28,189 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
-  List<ChatMessage> messages = [];
-  User? currentUser;
-  User? otherUser;
-  Chat? conversation;
-  Post? relatedProduct;
-  bool isLoading = true;
-  String? uploadedImage;
+  StreamSubscription<List<ChatMessage>>? _messagesSub;
+  List<ChatMessage> _messages = [];
+  User? _currentUser;
+  User? _otherUser;
+  Post? _product;
+  bool _isLoading = true;
+  bool _isBuyer = true;
+  String? _chatId;
+  final ChatApi _chat = ChatApi(); 
+  
 
   @override
   void initState() {
     super.initState();
-    _loadChatData();
+    _initializeChat();
   }
 
-  Future<void> _loadChatData() async {
+  Future<void> _initializeChat() async {
     try {
-      // Load current user
-      final user = await MockService.getCurrentUser();
-      
-      // Load conversation
-      final convs = await MockService.getUserChats('u_current');
-      final conv = convs.firstWhere((c) => c.id == widget.chatId);
-      
-      // Load messages
-      final chatMessages = await MockService.getChatMessages(widget.chatId);
-      
-      // Get other user info
-      String otherUserId = conv.user1Id == 'u_current' 
-          ? conv.user2Id 
-          : conv.user1Id;
-      
-      final other = await MockService.getUserById('user/$otherUserId');
-      
-      // Try to load related product if exists
-      Post? product;
-      if (chatMessages.isNotEmpty && chatMessages.first.postId != null) {
-        product = await MockService.getPostById(chatMessages.first.postId!.split('/').last);
+      // Si no tenemos chatId, crearlo o obtenerlo
+      if (widget.chatId.isEmpty) {
+        _chatId = await _chat.getOrCreateProductChat(
+          widget.productId,
+          widget.sellerId,
+        );
+      } else {
+        _chatId = widget.chatId;
       }
+
+      // Cargar información del chat
+      final chatInfo = await _chat.getChatInfo(_chatId!);
       
-      setState(() {
-        currentUser = user;
-        otherUser = other;
-        conversation = conv;
-        messages = chatMessages;
-        relatedProduct = product;
-        isLoading = false;
-      });
-      
-      // Scroll to bottom after loading
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      if (mounted) {
+        setState(() {
+          _currentUser = chatInfo['currentUser'];
+          _otherUser = chatInfo['otherUser'];
+          _product = chatInfo['product'];
+          _isBuyer = chatInfo['isBuyer'];
+          _isLoading = false;
+        });
+
+        // Suscribirse a los mensajes
+        _messagesSub = _chat.streamChatMessages(_chatId!).listen((messages) {
+          if (mounted) {
+            setState(() {
+              _messages = messages;
+            });
+          }
+        });
+
+        // Marcar mensajes como leídos
+        _chat.markMessagesAsRead(_chatId!);
+      }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+      print('Error initializing chat: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading chat: $e')),
+        );
+      }
     }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  Future<void> _sendMessage() async {
-    final messageText = _messageController.text.trim();
-    if (messageText.isEmpty && uploadedImage == null) return;
-    
-    // Create new message locally
-    final newMessage = ChatMessage(
-      id: 'm_${DateTime.now().millisecondsSinceEpoch}',
-      senderId: currentUser?.id ?? 'u_current',
-      receiverId: otherUser?.id ?? '',
-      content: messageText.isNotEmpty ? messageText : null,
-      image: uploadedImage,
-      sentAt: DateTime.now(),
-      read: false,
-    );
-    
-    setState(() {
-      messages.add(newMessage);
-      uploadedImage = null;
-    });
-    
-    _messageController.clear();
-    _scrollToBottom();
-    
-    // Send to backend
-    await MockService.sendMessage(widget.chatId, messageText);
-  }
-
-  void _addImage() {
-    // Simulate image selection - only one image allowed per message
-    setState(() {
-      uploadedImage = 'https://picsum.photos/seed/${DateTime.now().millisecondsSinceEpoch}/400/400';
-    });
-  }
-
-  void _removeImage() {
-    setState(() {
-      uploadedImage = null;
-    });
-  }
-
-  void _initiateNfcTransaction() {
-    if (relatedProduct == null) return;
-    
-    context.push('/nfc-transaction', extra: {
-      'productId': relatedProduct!.id,
-      'sellerId': relatedProduct!.userId.split('/').last,
-      'buyerId': currentUser?.id ?? 'u_current',
-      'price': relatedProduct!.price,
-      'isSeller': relatedProduct!.userId.contains(currentUser?.id ?? 'u_current'),
-    });
-  }
-
-  String _formatTime(DateTime timestamp) {
-    final hour = timestamp.hour.toString().padLeft(2, '0');
-    final minute = timestamp.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
-  String _getInitials(String name) {
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
-      return parts[0].substring(0, 2).toUpperCase();
-    }
-    return 'U';
   }
 
   @override
   void dispose() {
+    _messagesSub?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty || _chatId == null) return;
+
+    _messageController.clear();
+    
+    try {
+      await _chat.sendMessage(
+        chatId: _chatId!,
+        text: text,
+      );
+    } catch (e) {
+      print('Error sending message: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sending message: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Loading...'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        title: const Text('Messages'),
-        centerTitle: true,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _otherUser?.name ?? 'Chat',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Text(
+              _isBuyer ? 'Seller' : 'Buyer',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
+        actions: [
+          // Mostrar miniatura del producto
+          if (_product != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  if (_product!.images.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        _product!.images.first,
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '\$${_product!.price.toStringAsFixed(0)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [
-          // User info header with profile picture and name
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardTheme.color,
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.textSecondary.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                // Profile picture
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.primaryColor.withOpacity(0.1),
-                  child: Text(
-                    _getInitials(otherUser?.name ?? 'User'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primaryColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Name only (removed status)
-                Expanded(
-                  child: Text(
-                    otherUser?.name ?? 'User',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Related product (if exists)
-          if (relatedProduct != null)
+          // Información del producto
+          if (_product != null)
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.primaryColor.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(10),
-              ),
+              padding: const EdgeInsets.all(12),
+              color: Colors.grey[100],
               child: Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      relatedProduct!.images.isNotEmpty 
-                          ? relatedProduct!.images.first 
-                          : 'https://picsum.photos/seed/product/50/50',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
+                  if (_product!.images.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _product!.images.first,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          relatedProduct!.title,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          _product!.title,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          '\$${(relatedProduct!.price / 100).toStringAsFixed(2)}',
+                          '\$${_product!.price.toStringAsFixed(2)}',
                           style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary.withOpacity(0.8),
+                            color: AppColors.primaryColor,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
@@ -273,251 +219,270 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          
-          // NFC Transaction Button (NEW)
-          if (relatedProduct != null && relatedProduct!.status == 'active')
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              child: ElevatedButton.icon(
-                onPressed: _initiateNfcTransaction,
-                icon: const Icon(Icons.nfc, size: 20),
-                label: const Text('Complete Transaction'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 44),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          
-          // Messages list with profile pictures
+          // Lista de mensajes
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final message = messages[index];
-                final isMe = message.senderId == currentUser?.id;
-                
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Row(
-                    mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Other user's profile picture on the left
-                      if (!isMe) ...[
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: AppColors.primaryColor.withOpacity(0.1),
-                          child: Text(
-                            _getInitials(otherUser?.name ?? 'U'),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryColor,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
+            child: _messages.isEmpty
+                ? Center(
+                    child: Text(
+                      'Start a conversation about ${_product?.title ?? "this product"}',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    reverse: true,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      final isMe = message.senderId == _currentUser?.id;
                       
-                      // Message bubble
-                      Flexible(
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.65,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isMe 
-                                ? AppColors.backgroundDark 
-                                : Theme.of(context).cardTheme.color,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Image if any
-                              if (message.image != null && message.image!.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      message.image!,
-                                      width: 200,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                              
-                              // Message text
-                              if (message.content != null && message.content!.isNotEmpty)
-                                Text(
-                                  message.content!,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: isMe ? Colors.white : AppColors.textPrimary,
-                                  ),
-                                ),
-                              
-                              const SizedBox(height: 4),
-                              
-                              // Time
-                              Text(
-                                _formatTime(message.sentAt),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isMe 
-                                      ? Colors.white.withOpacity(0.7)
-                                      : AppColors.textSecondary.withOpacity(0.6),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      
-                      // My profile picture on the right
-                      if (isMe) ...[
-                        const SizedBox(width: 8),
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: AppColors.primaryColor.withOpacity(0.1),
-                          child: Text(
-                            _getInitials(currentUser?.name ?? 'Me'),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                      return _buildMessageBubble(message, isMe);
+                    },
                   ),
-                );
-              },
-            ),
           ),
-          
-          // Image preview (only one image allowed)
-          if (uploadedImage != null)
-            Container(
-              height: 80,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Stack(
-                children: [
-                  Container(
-                    width: 70,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      image: DecorationImage(
-                        image: NetworkImage(uploadedImage!),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: InkWell(
-                      onTap: _removeImage,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          
-          // Input field with image button
+          if (_isBuyer) _buildPurchasePrompt(context),
+          // Input de mensaje
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).cardTheme.color,
-              border: Border(
-                top: BorderSide(
-                  color: AppColors.textSecondary.withOpacity(0.1),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                // Add image button
-                IconButton(
-                  icon: Icon(
-                    Icons.add_photo_alternate_outlined,
-                    color: AppColors.textSecondary.withOpacity(0.6),
-                  ),
-                  onPressed: _addImage,
-                ),
-                
-                // Message input
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: TextField(
-                      controller: _messageController,
-                      maxLines: null,
-                      decoration: const InputDecoration(
-                        hintText: 'Type a message...',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                
-                // Send button
-                Container(
-                  decoration: const BoxDecoration(
-                    color: AppColors.primaryColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.send,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    onPressed: _sendMessage,
-                  ),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  offset: const Offset(0, -2),
+                  blurRadius: 4,
+                  color: Colors.black.withOpacity(0.1),
                 ),
               ],
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: 'Write a message...',
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                      ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    backgroundColor: AppColors.primaryColor,
+                    child: IconButton(
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      onPressed: _sendMessage,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildPurchasePrompt(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDark,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Ready to buy?',
+                style: const TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (_currentUser == null || _product == null) return;
+                
+                try {
+                  final saleId = await FirestoreService.createSale(
+                    postId: widget.productId,
+                    buyerId: _currentUser!.id,
+                    sellerId: _product!.userId,
+                    price: _product!.price,
+                  );
+                  
+                  if (saleId != null && mounted) {
+                    context.push('/confirm_purchase', extra: {
+                      'role': 'buyer',
+                      'postId': widget.productId,
+                      'buyerId': _currentUser!.id,
+                      'saleId': saleId,
+                    });
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error creating sale: $e')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: AppColors.textLight,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.shopping_cart_outlined, size: 20),
+              label: const Text(
+                'Buy',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(ChatMessage message, bool isMe) {
+    final messageUser = isMe ? _currentUser : _otherUser;
+    
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Row(
+          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!isMe) ...[
+              CircleAvatar(
+                radius: 20,
+                backgroundImage: NetworkImage(
+                  'https://picsum.photos/seed/${messageUser?.id ?? 'user'}/100/100',
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Column(
+                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  // Nombre del usuario
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      messageUser?.name ?? 'User',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  // Burbuja del mensaje
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isMe ? AppColors.deepNavy : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (message.image != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  message.image!,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      color: Colors.grey[300],
+                      child: const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (message.content != null) const SizedBox(height: 8),
+            ],
+                        if (message.content != null)
+                          Text(
+                            message.content!,
+                            style: TextStyle(
+                              color: isMe ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatTime(message.sentAt),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isMe ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isMe) ...[
+              const SizedBox(width: 8),
+              CircleAvatar(
+                radius: 20,
+                backgroundImage: NetworkImage(
+                  'https://picsum.photos/seed/${messageUser?.id ?? 'user'}/100/100',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inDays > 0) {
+      return '${dateTime.day}/${dateTime.month}';
+    } else {
+      final hour = dateTime.hour.toString().padLeft(2, '0');
+      final minute = dateTime.minute.toString().padLeft(2, '0');
+      return '$hour:$minute';
+    }
   }
 }

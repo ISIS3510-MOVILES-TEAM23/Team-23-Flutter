@@ -1,23 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'screens/home_screen.dart';
+
 import 'screens/categories_screen.dart';
 import 'screens/category_products_screen.dart';
-import 'screens/product_detail_screen.dart';
-import 'screens/create_post_screen.dart';
-import 'screens/messages_screen.dart';
 import 'screens/chat_screen.dart';
+import 'screens/confirm_purchase_screen.dart';
+import 'screens/create_post_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/messages_screen.dart';
+import 'screens/notifications_screen.dart';
+import 'screens/product_detail_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/sales_screen.dart';
-import 'screens/notifications_screen.dart';
+import 'screens/signup_screen.dart';
+import 'screens/verification_screen.dart';
 import 'widgets/main_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/home',
+  initialLocation: '/login',
   routes: [
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/signup',
+      builder: (context, state) => const SignupScreen(),
+    ),
+    GoRoute(
+      path: '/verification',
+      builder: (context, state) {
+        final extra = (state.extra as Map?) ?? {};
+        return VerificationScreen(
+          email: (extra['email'] as String?) ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/chat',
+      name: 'chat-direct',
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>? ?? {};
+        return ChatScreen(
+          chatId: args['chatId']?.toString() ?? '',
+          productId: args['productId']?.toString() ?? '',
+          sellerId: args['sellerId']?.toString() ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/confirm_purchase',
+      builder: (context, state) => const ConfirmPurchaseScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return MainScaffold(navigationShell: navigationShell);
@@ -89,10 +127,16 @@ final router = GoRouter(
               builder: (context, state) => const MessagesScreen(),
               routes: [
                 GoRoute(
-                  path: 'chat/:conversationId',
-                  builder: (context, state) => ChatScreen(
-                    chatId: state.pathParameters['conversationId']!,
-                  ),
+                  path: 'chat',
+                  name: 'chat',
+                  builder: (context, state) {
+                    final args = state.extra as Map<String, dynamic>? ?? {};
+                    return ChatScreen(
+                      chatId: args['chatId']?.toString() ?? '',
+                      productId: args['productId']?.toString() ?? '',
+                      sellerId: args['sellerId']?.toString() ?? '',
+                    );
+                  },
                 ),
               ],
             ),

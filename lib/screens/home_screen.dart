@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../models/models.dart';
-import '../services/mock_service.dart';
+
 import '../theme/app_colors.dart';
 import '../widgets/product_card.dart';
+import '../view_models/home_view_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,43 +13,44 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Post> highlightedProducts = [];
-  List<Post> newProducts = [];
-  bool isLoading = true;
-
-  String _formatDollars(int cents) => '\$' + (cents / 100).toStringAsFixed(2);
+  final TextEditingController _searchController = TextEditingController();
+  late HomeViewModel viewModel;
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    viewModel = HomeViewModel();
+    viewModel.loadProducts();
   }
 
-  Future<void> _loadProducts() async {
-    try {
-      final highlighted = await MockService.getHighlightedPosts();
-      final newProds = await MockService.getNewPosts();
-      
-      setState(() {
-        highlightedProducts = highlighted;
-        newProducts = newProds;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+  @override
+  void dispose() {
+    _searchController.dispose();
+    viewModel.dispose();
+    super.dispose();
+  }
+
+  void _onSearchSubmitted(String value) {
+    viewModel.applySearch(value);
+  }
+
+  void _onSearchChanged(String value) {
+    if (value.isEmpty && viewModel.hasSearchQuery) {
+      viewModel.clearSearch();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadProducts,
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, child) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: viewModel.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: viewModel.loadProducts,
               child: CustomScrollView(
                 slivers: [
                   // App header
@@ -63,7 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: const Icon(Icons.notifications_outlined),
                       ),
                     ],
-                    backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+                    backgroundColor:
+                        Theme.of(context).appBarTheme.backgroundColor,
                   ),
                   // Search Bar
                   SliverToBoxAdapter(
@@ -76,22 +78,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                           // No border for ultra-minimal look
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.search,
                               color: AppColors.textSecondary,
                             ),
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: TextField(
+                                controller: _searchController,
                                 decoration: InputDecoration(
                                   hintText: 'Search for products...',
                                   hintStyle: TextStyle(
                                     color: AppColors.textSecondary,
                                   ),
-                                  border: InputBorder.none, // no underline or divider
+                                  border: InputBorder
+                                      .none, // no underline or divider
                                 ),
+                                textInputAction: TextInputAction.search,
+                                onChanged: _onSearchChanged,
+                                onSubmitted: _onSearchSubmitted,
                               ),
                             ),
                           ],
@@ -99,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Highlighted Products Section
                   SliverToBoxAdapter(
                     child: Column(
@@ -118,33 +125,40 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 240,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            itemCount: highlightedProducts.length,
-                            itemBuilder: (context, index) {
-                              final product = highlightedProducts[index];
-                              return Container(
-                                width: 180,
-                                margin: const EdgeInsets.only(right: 16),
-                                child: ProductCard(
-                                  product: product,
-                                  onTap: () {
-                                    context.go('/home/product/${product.id}');
-                                  },
-                                ),
-                              );
-                            },
-                          ),
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: viewModel.highlightedProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = viewModel.highlightedProducts[index];
+                          return Container(
+                            width: 180,
+                            margin: const EdgeInsets.only(right: 16),
+                            child: ProductCard(
+                              product: product,
+                              onTap: () {
+                                print(
+                                    'Navigating to highlighted product: ID=${product.id}');
+                                viewModel.logProductClick(
+                                  productId: product.id,
+                                  categoryId: product.categoryId,
+                                  source: 'highlighted_carousel',
+                                );
+                                context.go('/home/product/${product.id}');
+                              },
+                            ),
+                          );
+                        },
+                      ),
                         ),
                       ],
                     ),
                   ),
-                  
+
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 30),
                   ),
-                  
+
                   // New Products Section
                   SliverToBoxAdapter(
                     child: const Padding(
@@ -158,21 +172,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  
+
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 12),
                   ),
-                  
+
                   // New Products List (full width)
                   SliverList.builder(
-                    itemCount: newProducts.length,
+                    itemCount: viewModel.filteredNewProducts.length,
                     itemBuilder: (context, index) {
-                      final product = newProducts[index];
+                      final product = viewModel.filteredNewProducts[index];
                       final imageUrl = product.images.isNotEmpty
                           ? product.images.first
                           : 'https://picsum.photos/seed/${product.id}/300/200';
                       return InkWell(
-                        onTap: () => context.go('/home/product/${product.id}'),
+                        onTap: () {
+                          print('Navigating to product: ID=${product.id}');
+                          viewModel.logProductClick(
+                            productId: product.id,
+                            categoryId: product.categoryId,
+                            source: viewModel.hasSearchQuery
+                                ? 'search_bar'
+                                : 'home_feed',
+                            searchQuery: viewModel.lastSearchQuery,
+                          );
+                          context.go('/home/product/${product.id}');
+                        },
                         child: Container(
                           margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                           padding: const EdgeInsets.all(12),
@@ -204,14 +229,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                       product.description,
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: AppColors.textPrimary.withOpacity(0.8),
+                                        color: AppColors.textPrimary
+                                            .withOpacity(0.8),
                                       ),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      _formatDollars(product.price),
+                                      viewModel.formatDollars(product.price),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
@@ -232,6 +258,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                     child: Image.network(
                                       imageUrl,
                                       fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey.withOpacity(0.1),
+                                          child: Icon(
+                                            Icons.image_outlined,
+                                            size: 32,
+                                            color: AppColors.textSecondary
+                                                .withOpacity(0.3),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
@@ -242,13 +280,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-                  
+
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 20),
                   ),
                 ],
               ),
             ),
+        );
+      },
     );
   }
 }
