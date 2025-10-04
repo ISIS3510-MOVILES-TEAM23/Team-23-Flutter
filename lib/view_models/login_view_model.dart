@@ -41,22 +41,24 @@ class LoginViewModel extends ChangeNotifier {
     }
   }
 
-  Future<firebase_auth.UserCredential?> signInWithGoogle() async {
-    try {
-      isLoading = true;
-      notifyListeners();
+  // ========== GOOGLE SIGN IN - COMMENTED OUT ==========
+  // Future<firebase_auth.UserCredential?> signInWithGoogle() async {
+  //   try {
+  //     isLoading = true;
+  //     notifyListeners();
 
-      final userCredential = await _authRepository.signInWithGoogle();
+  //     final userCredential = await _authRepository.signInWithGoogle();
 
-      isLoading = false;
-      notifyListeners();
+  //     isLoading = false;
+  //     notifyListeners();
 
-      return userCredential;
-    } catch (e) {
-      isLoading = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
+  //     return userCredential;
+  //   } catch (e) {
+  //     isLoading = false;
+  //     notifyListeners();
+  //     rethrow;
+  //   }
+  // }
+  // ========== END GOOGLE SIGN IN ==========
 }
 

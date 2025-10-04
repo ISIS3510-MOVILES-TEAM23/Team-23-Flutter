@@ -89,12 +89,24 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 40),
                   TextField(
+                    onChanged: viewModel.setName,
+                    keyboardType: TextInputType.name,
+                    autofillHints: const [AutofillHints.name],
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
                     onChanged: viewModel.setEmail,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -105,6 +117,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -115,6 +128,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Confirm Password',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock_outline),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -139,31 +153,33 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                   ),
                   const SizedBox(height: 20),
-                  const Row(
-                    children: [
-                      Expanded(child: Divider()),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text('Or'),
-                      ),
-                      Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: viewModel.isLoading ? null : () => viewModel.signInWithGoogle(),
-                    icon: Image.network(
-                      'http://pngimg.com/uploads/google/google_PNG19635.png',
-                      height: 24.0,
-                    ),
-                    label: const Text('Sign up with Google'),
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.grey),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
+                  // ========== GOOGLE SIGN IN - COMMENTED OUT ==========
+                  // const Row(
+                  //   children: [
+                  //     Expanded(child: Divider()),
+                  //     Padding(
+                  //       padding: EdgeInsets.symmetric(horizontal: 8.0),
+                  //       child: Text('Or'),
+                  //     ),
+                  //     Expanded(child: Divider()),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: 20),
+                  // ElevatedButton.icon(
+                  //   onPressed: viewModel.isLoading ? null : () => viewModel.signInWithGoogle(),
+                  //   icon: Image.network(
+                  //     'http://pngimg.com/uploads/google/google_PNG19635.png',
+                  //     height: 24.0,
+                  //   ),
+                  //   label: const Text('Sign up with Google'),
+                  //   style: ElevatedButton.styleFrom(
+                  //     foregroundColor: Colors.black,
+                  //     backgroundColor: Colors.white,
+                  //     side: const BorderSide(color: Colors.grey),
+                  //     padding: const EdgeInsets.symmetric(vertical: 12),
+                  //   ),
+                  // ),
+                  // ========== END GOOGLE SIGN IN ==========
                   const SizedBox(height: 40),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

@@ -14,10 +14,15 @@ class SignupViewModel extends ChangeNotifier {
   })  : _authRepository = authRepository ?? AuthRepository(),
         _userRepository = userRepository ?? UserRepository();
 
+  String name = '';
   String email = '';
   String password = '';
   String confirmPassword = '';
   bool isLoading = false;
+
+  void setName(String value) {
+    name = value;
+  }
 
   void setEmail(String value) {
     email = value;
@@ -43,6 +48,9 @@ class SignupViewModel extends ChangeNotifier {
   }
 
   Future<User?> signup() async {
+    if (name.trim().isEmpty) {
+      throw Exception('El nombre es requerido');
+    }
     if (!isUniandes(email)) {
       throw Exception('Usa tu correo @uniandes.edu.co');
     }
@@ -76,7 +84,10 @@ class SignupViewModel extends ChangeNotifier {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
-          .set({'is_verified': false}, SetOptions(merge: true));
+          .set({
+            'name': name.trim(),
+            'is_verified': false
+          }, SetOptions(merge: true));
 
       isLoading = false;
       notifyListeners();
@@ -89,20 +100,22 @@ class SignupViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    try {
-      isLoading = true;
-      notifyListeners();
+  // ========== GOOGLE SIGN IN - COMMENTED OUT ==========
+  // Future<void> signInWithGoogle() async {
+  //   try {
+  //     isLoading = true;
+  //     notifyListeners();
 
-      await _authRepository.signInWithGoogle();
+  //     await _authRepository.signInWithGoogle();
 
-      isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      isLoading = false;
-      notifyListeners();
-      rethrow;
-    }
-  }
+  //     isLoading = false;
+  //     notifyListeners();
+  //   } catch (e) {
+  //     isLoading = false;
+  //     notifyListeners();
+  //     rethrow;
+  //   }
+  // }
+  // ========== END GOOGLE SIGN IN ==========
 }
 
