@@ -646,6 +646,62 @@ class FirestoreService {
     }
   }
 
+  static Future<String?> createSale({
+    required String postId,
+    required String buyerId,
+    required String sellerId,
+    required int price,
+  }) async {
+    try {
+      final postRef = _db.collection('posts').doc(postId);
+      final buyerRef = _db.collection('users').doc(buyerId);
+      final sellerRef = _db.collection('users').doc(sellerId);
+
+      // Check if a sale already exists for this post, buyer, and seller
+      final existingSales = await _db.collection('sales')
+          .where('post_ref', isEqualTo: postRef)
+          .where('buyer_ref', isEqualTo: buyerRef)
+          .where('seller_ref', isEqualTo: sellerRef)
+          .get();
+
+      if (existingSales.docs.isNotEmpty) {
+        final existingSaleId = existingSales.docs.first.id;
+        print('Sale already exists with ID: $existingSaleId');
+        return existingSaleId;
+      }
+
+      final saleData = {
+        'post_ref': postRef,
+        'buyer_ref': buyerRef,
+        'seller_ref': sellerRef,
+        'price': price,
+        'status': 'pending',
+        'created_at': FieldValue.serverTimestamp(),
+      };
+
+      final docRef = await _db.collection('sales').add(saleData);
+      await docRef.update({'_id': docRef.id});
+      
+      print('Sale created successfully with ID: ${docRef.id}');
+      return docRef.id;
+    } catch (e) {
+      print('Error creating sale: $e');
+      return null;
+    }
+  }  static Future<bool> updateSaleStatus(String saleId, String status) async {
+    try {
+      await _db.collection('sales').doc(saleId).update({
+        'status': status,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      print('Sale $saleId status updated to $status');
+      return true;
+    } catch (e) {
+      print('Error updating sale status: $e');
+      return false;
+    }
+  }
+
   static Future<List<PostWithChat>> getUserPostsWithChats(String userId) async {
     List<PostWithChat> postsWithChats = [];
     try {

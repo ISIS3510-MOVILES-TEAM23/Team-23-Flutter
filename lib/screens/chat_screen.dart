@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
+
 import '../models/models.dart';
 import '../services/chat_api.dart';
-import '../services/storage_service.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -241,6 +241,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     },
                   ),
           ),
+          if (_isBuyer) _buildPurchasePrompt(context),
           // Input de mensaje
           Container(
             padding: const EdgeInsets.all(8),
@@ -290,6 +291,79 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPurchasePrompt(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundDark,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Ready to buy?',
+                style: const TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (_currentUser == null || _product == null) return;
+                
+                try {
+                  final saleId = await FirestoreService.createSale(
+                    postId: widget.productId,
+                    buyerId: _currentUser!.id,
+                    sellerId: _product!.userId,
+                    price: _product!.price,
+                  );
+                  
+                  if (saleId != null && mounted) {
+                    context.push('/confirm_purchase', extra: {
+                      'role': 'buyer',
+                      'postId': widget.productId,
+                      'buyerId': _currentUser!.id,
+                      'saleId': saleId,
+                    });
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error creating sale: $e')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+                foregroundColor: AppColors.textLight,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.shopping_cart_outlined, size: 20),
+              label: const Text(
+                'Buy',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

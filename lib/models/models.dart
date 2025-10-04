@@ -358,7 +358,7 @@ class Sale {
   final String buyerId; // 'user/<id>'
   final String sellerId; // 'user/<id>'
   final int price;
-  final String status; // pending | completed | canceled | acknowledged
+  final String status; // pending | completed 
   final DateTime createdAt;
 
   const Sale({
