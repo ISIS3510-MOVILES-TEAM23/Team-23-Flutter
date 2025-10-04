@@ -35,10 +35,12 @@ class AuthRepository {
     return await _authService.signInWithEmailAndPassword(email, password);
   }
 
-  // Sign in with Google
-  Future<firebase_auth.UserCredential?> signInWithGoogle() async {
-    return await _authService.signInWithGoogle();
-  }
+  // ========== GOOGLE SIGN IN - COMMENTED OUT ==========
+  // // Sign in with Google
+  // Future<firebase_auth.UserCredential?> signInWithGoogle() async {
+  //   return await _authService.signInWithGoogle();
+  // }
+  // ========== END GOOGLE SIGN IN ==========
 
   // Sign out
   Future<void> signOut() async {

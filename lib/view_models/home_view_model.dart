@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../data/repositories/post_repository.dart';
+import '../services/recommendation_service.dart'; // <-- ADD THIS
 
 class HomeViewModel extends ChangeNotifier {
   final PostRepository _postRepository;
@@ -16,6 +17,11 @@ class HomeViewModel extends ChangeNotifier {
 
   bool get hasSearchQuery => (_lastSearchQuery?.isNotEmpty ?? false);
   String? get lastSearchQuery => _lastSearchQuery;
+
+  // --- Recommendations state ---  // <-- ADD THIS
+  final RecommendationService _recService = RecommendationService();
+  List<Post> recommendedProducts = [];
+  bool isLoadingRecommendations = false;
 
   Future<void> loadProducts() async {
     try {
@@ -34,6 +40,21 @@ class HomeViewModel extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
       rethrow;
+    }
+  }
+
+  // Cargar recomendaciones basadas en product_search_events  // <-- ADD THIS
+  Future<void> loadRecommendations({int limit = 5, int windowDays = 30}) async {
+    isLoadingRecommendations = true;
+    notifyListeners();
+    try {
+      recommendedProducts = await _recService.fetchRecommendations(
+        limit: limit,
+        windowDays: windowDays,
+      );
+    } finally {
+      isLoadingRecommendations = false;
+      notifyListeners();
     }
   }
 

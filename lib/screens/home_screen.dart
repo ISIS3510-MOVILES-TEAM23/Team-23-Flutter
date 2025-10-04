@@ -5,6 +5,10 @@ import '../theme/app_colors.dart';
 import '../widgets/product_card.dart';
 import '../view_models/home_view_model.dart';
 
+// 👇 NUEVO: para traer las recomendaciones y el tipo Post
+import '../services/recommendation_service.dart';
+import '../models/models.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -16,11 +20,18 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   late HomeViewModel viewModel;
 
+  // 👇 NUEVO: future para "Recommended for you"
+  Future<List<Post>>? _recsFuture;
+
   @override
   void initState() {
     super.initState();
     viewModel = HomeViewModel();
     viewModel.loadProducts();
+
+    // 👇 NUEVO: inic. de recomendaciones (con logs internos activados)
+    _recsFuture = RecommendationService()
+        .fetchRecommendations(limit: 5, windowDays: 30, debug: true);
   }
 
   @override
@@ -50,8 +61,18 @@ class _HomeScreenState extends State<HomeScreen> {
           body: viewModel.isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                  onRefresh: viewModel.loadProducts,
-              child: CustomScrollView(
+                  // 👇 NUEVO: refresca productos y recomendaciones
+                  onRefresh: () async {
+                    await viewModel.loadProducts();
+                    setState(() {
+                      _recsFuture = RecommendationService()
+                          .fetchRecommendations(
+                              limit: 5, windowDays: 30, debug: true);
+                    });
+                    // (opcional) espera a que termine
+                    await _recsFuture;
+                  },
+                  child: CustomScrollView(
                 slivers: [
                   // App header
                   SliverAppBar(
@@ -137,8 +158,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: ProductCard(
                               product: product,
                               onTap: () {
-                                print(
-                                    'Navigating to highlighted product: ID=${product.id}');
                                 viewModel.logProductClick(
                                   productId: product.id,
                                   categoryId: product.categoryId,
@@ -155,9 +174,82 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 30),
+                  // 🔻 NUEVO: Recommended for you (usa _recsFuture)
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: const Text(
+                        'Recommended for you',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 240,
+                      child: FutureBuilder<List<Post>>(
+                        future: _recsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                                child: CircularProgressIndicator());
+                          }
+                          if (snapshot.hasError) {
+                            return const Center(
+                                child: Text('Error loading recommendations'));
+                          }
+                          final items = snapshot.data ?? const <Post>[];
+
+                          // Log simple de IDs finales (además del debug interno del service)
+                          if (items.isNotEmpty) {
+                            debugPrint('[Reco] final ids: '
+                                '${items.map((p) => p.id).join(', ')}');
+                          }
+
+                          if (items.isEmpty) {
+                            return const Center(
+                              child: Text('No recommendations yet'),
+                            );
+                          }
+
+                          return ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: items.length,
+                            itemBuilder: (context, index) {
+                              final product = items[index];
+                              return Container(
+                                width: 180,
+                                margin: const EdgeInsets.only(right: 16),
+                                child: ProductCard(
+                                  product: product,
+                                  onTap: () {
+                                    // Log para analytics y navegación
+                                    viewModel.logProductClick(
+                                      productId: product.id,
+                                      categoryId: product.categoryId,
+                                      source: 'recommended',
+                                    );
+                                    context
+                                        .go('/home/product/${product.id}');
+                                  },
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 30)),
+                  // 🔺 FIN Recommended
 
                   // New Products Section
                   SliverToBoxAdapter(
@@ -187,7 +279,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           : 'https://picsum.photos/seed/${product.id}/300/200';
                       return InkWell(
                         onTap: () {
-                          print('Navigating to product: ID=${product.id}');
                           viewModel.logProductClick(
                             productId: product.id,
                             categoryId: product.categoryId,
