@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/models.dart';
-import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/product_card.dart';
+import '../view_models/home_view_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,119 +13,44 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Post> highlightedProducts = [];
-  List<Post> newProducts = [];
-  bool isLoading = true;
   final TextEditingController _searchController = TextEditingController();
-  String? _lastSearchQuery;
-  List<Post> filteredNewProducts = [];
-
-  bool get _hasSearchQuery => (_lastSearchQuery?.isNotEmpty ?? false);
-
-  String _formatDollars(int cents) => '\$' + (cents / 100).toStringAsFixed(2);
+  late HomeViewModel viewModel;
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    viewModel = HomeViewModel();
+    viewModel.loadProducts();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    viewModel.dispose();
     super.dispose();
   }
 
   void _onSearchSubmitted(String value) {
-    _applySearch(value);
+    viewModel.applySearch(value);
   }
 
   void _onSearchChanged(String value) {
-    if (value.isEmpty && _hasSearchQuery) {
-      setState(() {
-        _lastSearchQuery = null;
-        filteredNewProducts = List<Post>.from(newProducts);
-      });
-    }
-  }
-
-  void _applySearch(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _lastSearchQuery = null;
-        filteredNewProducts = List<Post>.from(newProducts);
-      });
-      return;
-    }
-
-    setState(() {
-      _lastSearchQuery = trimmed;
-      filteredNewProducts = _filterProducts(trimmed);
-    });
-  }
-
-  List<Post> _filterProducts(String query) {
-    final lowerQuery = query.toLowerCase();
-    return newProducts.where((post) {
-      final titleMatches = post.title.toLowerCase().contains(lowerQuery);
-      final descriptionMatches =
-          post.description.toLowerCase().contains(lowerQuery);
-      return titleMatches || descriptionMatches;
-    }).toList();
-  }
-
-  String? _resolveCategoryName(String? rawCategory) {
-    if (rawCategory == null) return null;
-    final trimmed = rawCategory.trim();
-    if (trimmed.isEmpty) return null;
-    if (!trimmed.contains('/')) return trimmed;
-    final parts = trimmed.split('/');
-    return parts.isNotEmpty ? parts.last : trimmed;
-  }
-
-  void _logProductClick({
-    required String productId,
-    required String categoryId,
-    required String source,
-    String? searchQuery,
-  }) {
-    final categoryName = _resolveCategoryName(categoryId);
-    FirestoreService.logProductSearchEvent(
-      source: source,
-      query: searchQuery,
-      selectedCategory: categoryName,
-      suggestedCategories:
-          categoryName != null ? <String>[categoryName] : <String>[],
-    );
-  }
-
-  Future<void> _loadProducts() async {
-    try {
-      final highlighted = await FirestoreService.getHighlightedPosts();
-      final newProds = await FirestoreService.getNewPosts();
-
-      setState(() {
-        highlightedProducts = highlighted;
-        newProducts = newProds;
-        filteredNewProducts = List<Post>.from(newProds);
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
+    if (value.isEmpty && viewModel.hasSearchQuery) {
+      viewModel.clearSearch();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadProducts,
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, child) {
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: viewModel.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: viewModel.loadProducts,
               child: CustomScrollView(
                 slivers: [
                   // App header
@@ -201,31 +125,31 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 240,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            itemCount: highlightedProducts.length,
-                            itemBuilder: (context, index) {
-                              final product = highlightedProducts[index];
-                              return Container(
-                                width: 180,
-                                margin: const EdgeInsets.only(right: 16),
-                                child: ProductCard(
-                                  product: product,
-                                  onTap: () {
-                                    print(
-                                        'Navigating to highlighted product: ID=${product.id}');
-                                    _logProductClick(
-                                      productId: product.id,
-                                      categoryId: product.categoryId,
-                                      source: 'highlighted_carousel',
-                                    );
-                                    context.go('/home/product/${product.id}');
-                                  },
-                                ),
-                              );
-                            },
-                          ),
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: viewModel.highlightedProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = viewModel.highlightedProducts[index];
+                          return Container(
+                            width: 180,
+                            margin: const EdgeInsets.only(right: 16),
+                            child: ProductCard(
+                              product: product,
+                              onTap: () {
+                                print(
+                                    'Navigating to highlighted product: ID=${product.id}');
+                                viewModel.logProductClick(
+                                  productId: product.id,
+                                  categoryId: product.categoryId,
+                                  source: 'highlighted_carousel',
+                                );
+                                context.go('/home/product/${product.id}');
+                              },
+                            ),
+                          );
+                        },
+                      ),
                         ),
                       ],
                     ),
@@ -255,22 +179,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   // New Products List (full width)
                   SliverList.builder(
-                    itemCount: filteredNewProducts.length,
+                    itemCount: viewModel.filteredNewProducts.length,
                     itemBuilder: (context, index) {
-                      final product = filteredNewProducts[index];
+                      final product = viewModel.filteredNewProducts[index];
                       final imageUrl = product.images.isNotEmpty
                           ? product.images.first
                           : 'https://picsum.photos/seed/${product.id}/300/200';
                       return InkWell(
                         onTap: () {
                           print('Navigating to product: ID=${product.id}');
-                          _logProductClick(
+                          viewModel.logProductClick(
                             productId: product.id,
                             categoryId: product.categoryId,
-                            source: _lastSearchQuery != null
+                            source: viewModel.hasSearchQuery
                                 ? 'search_bar'
                                 : 'home_feed',
-                            searchQuery: _lastSearchQuery,
+                            searchQuery: viewModel.lastSearchQuery,
                           );
                           context.go('/home/product/${product.id}');
                         },
@@ -313,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      _formatDollars(product.price),
+                                      viewModel.formatDollars(product.price),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
@@ -363,6 +287,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+        );
+      },
     );
   }
 }

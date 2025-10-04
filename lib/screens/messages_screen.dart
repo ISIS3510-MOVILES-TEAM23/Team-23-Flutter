@@ -1,11 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-import '../models/models.dart' show ProductChat;
-import '../services/chat_api.dart';
 import '../theme/app_colors.dart';
 import '../widgets/loading_shimmer.dart';
+import '../view_models/messages_view_model.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -15,106 +12,56 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  final ChatApi _chat = ChatApi();
-
-  StreamSubscription<List<ProductChat>>? _subscription;
-  bool _isLoading = true;
-
-  // Dos listas separadas:
-  List<ProductChat> _buyersChats = [];  // Tú eres seller (otros = buyers)
-  List<ProductChat> _sellersChats = []; // Tú eres buyer  (otros = sellers)
+  late MessagesViewModel viewModel;
 
   @override
   void initState() {
     super.initState();
-    _loadChats();
+    viewModel = MessagesViewModel();
+    viewModel.loadChats();
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    viewModel.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadChats() async {
-    setState(() => _isLoading = true);
-
-    _subscription?.cancel();
-    _subscription = _chat.streamUserChats().listen(
-      (chats) {
-        // Particionamos por rol del usuario actual en cada chat
-        final buyers = <ProductChat>[];
-        final sellers = <ProductChat>[];
-
-        for (final c in chats) {
-          if (c.isBuyer) {
-            // tú eres buyer => sección "Sellers"
-            sellers.add(c);
-          } else {
-            // tú eres seller => sección "Buyers"
-            buyers.add(c);
-          }
-        }
-
-        // Ordenamos cada sección por updatedAt desc (por si acaso)
-        int _cmp(ProductChat a, ProductChat b) {
-          final aTime = a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bTime = b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bTime.compareTo(aTime);
-        }
-        buyers.sort(_cmp);
-        sellers.sort(_cmp);
-
-        if (mounted) {
-          setState(() {
-            _buyersChats = buyers;
-            _sellersChats = sellers;
-            _isLoading = false;
-          });
-        }
-      },
-      onError: (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-      },
-    );
-  }
-
-  Future<void> _refresh() async {
-    _loadChats();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEmpty = _buyersChats.isEmpty && _sellersChats.isEmpty;
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, child) {
+        final isEmpty = viewModel.buyersChats.isEmpty && viewModel.sellersChats.isEmpty;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Messages'),
-        centerTitle: true,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: _isLoading
-            ? const LoadingShimmer(width: double.infinity, height: 300)
-            : isEmpty
-                ? _buildEmptyState(context)
-                : ListView(
-                    children: [
-                      if (_buyersChats.isNotEmpty) ...[
-                        _buildSectionHeader('Buyers'),
-                        ..._buyersChats.map(_buildChatTile),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_sellersChats.isNotEmpty) ...[
-                        _buildSectionHeader('Sellers'),
-                        ..._sellersChats.map(_buildChatTile),
-                        const SizedBox(height: 12),
-                      ],
-                    ],
-                  ),
-      ),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Messages'),
+            centerTitle: true,
+          ),
+          body: RefreshIndicator(
+            onRefresh: viewModel.refresh,
+            child: viewModel.isLoading
+                ? const LoadingShimmer(width: double.infinity, height: 300)
+                : isEmpty
+                    ? _buildEmptyState(context)
+                    : ListView(
+                        children: [
+                          if (viewModel.buyersChats.isNotEmpty) ...[
+                            _buildSectionHeader('Buyers'),
+                            ...viewModel.buyersChats.map(_buildChatTile),
+                            const SizedBox(height: 12),
+                          ],
+                          if (viewModel.sellersChats.isNotEmpty) ...[
+                            _buildSectionHeader('Sellers'),
+                            ...viewModel.sellersChats.map(_buildChatTile),
+                            const SizedBox(height: 12),
+                          ],
+                        ],
+                      ),
+          ),
+        );
+      },
     );
   }
 
@@ -151,7 +98,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  Widget _buildChatTile(ProductChat chat) {
+  Widget _buildChatTile(chat) {
     return InkWell(
       onTap: () {
         context.push(
@@ -163,7 +110,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           },
         ).then((_) {
           // Recargar al volver, por si cambian contadores de unread
-          _loadChats();
+          viewModel.loadChats();
         });
       },
       child: Container(
@@ -237,7 +184,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       ),
                       if (chat.updatedAt != null)
                         Text(
-                          _formatTime(chat.updatedAt!),
+                          viewModel.formatTime(chat.updatedAt!),
                           style:
                               TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
@@ -291,17 +238,5 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ),
       ),
     );
-  }
-
-  String _formatTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inDays > 365) return '${dateTime.year}';
-    if (difference.inDays > 30) return '${dateTime.day}/${dateTime.month}';
-    if (difference.inDays > 0) return '${difference.inDays}d';
-    if (difference.inHours > 0) return '${difference.inHours}h';
-    if (difference.inMinutes > 0) return '${difference.inMinutes}m';
-    return 'Ahora';
   }
 }
