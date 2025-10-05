@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  firebase_storage: ^13.0.2
+  cloud_functions: ^6.0.0
 
   # Core packages
   cupertino_icons: ^1.0.6
@@ -32,17 +34,34 @@ dependencies:
   
   # HTTP & API
   http: ^1.2.0
+  package_info_plus: ^8.0.0
+  uuid: ^4.4.0
+  device_info_plus: ^10.1.0
   
   # Optional: For animations
   flutter_animate: ^4.5.0
   
   # Optional: For pull to refresh
   pull_to_refresh: ^2.0.0
+  cloud_firestore: ^6.0.1
+  firebase_auth: ^6.1.0
+  firebase_core: ^4.1.1
+  google_sign_in: ^7.2.0
+  
+  # BLE packages
+  flutter_ble_peripheral: ^1.2.6
+  flutter_reactive_ble: ^5.3.1
+  permission_handler: ^11.3.1
+
+  # Geolocation
+  geolocator: ^13.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+  mockito: ^5.4.4
+  build_runner: ^2.4.9
 
 flutter:
   uses-material-design: true

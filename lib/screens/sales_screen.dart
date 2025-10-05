@@ -1,7 +1,8 @@
+import 'package:campus_marketplace/services/firestore_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../models/models.dart';
-import '../services/mock_service.dart';
 import '../theme/app_colors.dart';
 
 class SalesScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
   List<PostWithChat> allSales = [];
   List<PostWithChat> pendingSales = [];
   List<PostWithChat> completedSales = [];
+  User? user;
   bool isLoading = true;
 
   @override
@@ -27,8 +29,8 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
 
   Future<void> _loadSalesData() async {
     try {
-      final user = await MockService.getCurrentUser();
-      final sales = await MockService.getUserPostsWithChats(user.id);
+      user = await FirestoreService.getCurrentUser();
+      final sales = await FirestoreService.getUserPostsWithChats(user?.id ?? '');
       
       setState(() {
         allSales = sales;
@@ -342,9 +344,13 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                 // Detail Button - 75% width
                 Expanded(
                   flex: 3,
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
                     onPressed: () {
-                      context.go('/home/product/${post.id}');
+                      context.push('/confirm_purchase', extra: {
+                        'role': 'seller',
+                        'postId': saleData.post.id,
+                        'sellerId': user?.id ?? '',
+                      });
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryColor,
@@ -354,8 +360,9 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'View Details',
+                    icon: const Icon(Icons.local_shipping_outlined, size: 20),
+                    label: const Text(
+                      'Complete Purchase',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -370,7 +377,11 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                     flex: 1,
                     child: OutlinedButton(
                       onPressed: () {
-                        context.push('/messages/chat/${saleData.chatId}');
+                        context.push('/messages/chat', extra: {
+                          'chatId': saleData.chatId!,
+                          'productId': post.id,
+                          'sellerId': post.userId,
+                        });
                       },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),

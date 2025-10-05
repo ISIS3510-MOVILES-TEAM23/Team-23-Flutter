@@ -12,7 +12,7 @@ class MockService {
         images: ['https://picsum.photos/seed/macbook/400/400'],
         status: 'active',
         userId: 'user/u1',
-        subCategoryId: 'category/electronics/sub_category/laptops',
+        categoryId: 'categories/electronics',
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
       ),
       Post(
@@ -23,7 +23,7 @@ class MockService {
         images: ['https://picsum.photos/seed/calc/400/400'],
         status: 'active',
         userId: 'user/u2',
-        subCategoryId: 'category/books/sub_category/textbooks',
+        categoryId: 'categories/books',
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
       ),
       Post(
@@ -34,7 +34,7 @@ class MockService {
         images: ['https://picsum.photos/seed/fridge/400/400'],
         status: 'active',
         userId: 'user/u3',
-        subCategoryId: 'category/appliances/sub_category/fridge',
+        categoryId: 'categories/appliances',
         createdAt: DateTime.now().subtract(const Duration(hours: 12)),
       ),
       Post(
@@ -45,7 +45,7 @@ class MockService {
         images: ['https://picsum.photos/seed/nike/400/400'],
         status: 'active',
         userId: 'user/u4',
-        subCategoryId: 'category/clothing/sub_category/shoes',
+        categoryId: 'categories/clothing',
         createdAt: DateTime.now().subtract(const Duration(days: 3)),
       ),
     ];
@@ -62,7 +62,7 @@ class MockService {
         images: ['https://picsum.photos/seed/physics/400/400'],
         status: 'active',
         userId: 'user/u5',
-        subCategoryId: 'category/school/sub_category/lab',
+        categoryId: 'categories/school',
         createdAt: DateTime.now().subtract(const Duration(hours: 2)),
       ),
       Post(
@@ -73,7 +73,7 @@ class MockService {
         images: ['https://picsum.photos/seed/desk/400/400'],
         status: 'active',
         userId: 'user/u6',
-        subCategoryId: 'category/furniture/sub_category/desk',
+        categoryId: 'categories/furniture',
         createdAt: DateTime.now().subtract(const Duration(hours: 5)),
       ),
       Post(
@@ -84,7 +84,7 @@ class MockService {
         images: ['https://picsum.photos/seed/calc84/400/400'],
         status: 'active',
         userId: 'user/u7',
-        subCategoryId: 'category/electronics/sub_category/calculators',
+        categoryId: 'categories/electronics',
         createdAt: DateTime.now().subtract(const Duration(hours: 8)),
       ),
       Post(
@@ -95,7 +95,7 @@ class MockService {
         images: ['https://picsum.photos/seed/chem/400/400'],
         status: 'active',
         userId: 'user/u8',
-        subCategoryId: 'category/school/sub_category/chemistry',
+        categoryId: 'categories/school',
         createdAt: DateTime.now().subtract(const Duration(hours: 10)),
       ),
       Post(
@@ -106,7 +106,7 @@ class MockService {
         images: ['https://picsum.photos/seed/guitar/400/400'],
         status: 'active',
         userId: 'user/u9',
-        subCategoryId: 'category/music/sub_category/instruments',
+        categoryId: 'categories/music',
         createdAt: DateTime.now().subtract(const Duration(hours: 15)),
       ),
     ];
@@ -134,9 +134,9 @@ class MockService {
       ...await getHighlightedPosts(),
       ...await getNewPosts(),
     ];
-    
-    var filtered = allProducts.where((p) => p.subCategoryId.startsWith('category/$categoryId')).toList();
-    
+
+    var filtered = allProducts.where((p) => p.categoryId.startsWith('categories/$categoryId')).toList();
+
     // Aplicar filtros
     if (filters != null) {
       // UI provides price in dollars; backend uses integer price (e.g., cents)
@@ -194,7 +194,6 @@ class MockService {
       name: 'Juan Pérez',
       contactPreferences: 'push',
       email: 'juan.perez@university.edu',
-      password: 'hashed_password',
       role: 'student',
       createdAt: DateTime.now().subtract(const Duration(days: 10)),
     );
@@ -209,7 +208,6 @@ class MockService {
         name: 'Carlos Mendoza',
         contactPreferences: 'push',
         email: 'carlos@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 100)),
       ),
@@ -218,7 +216,6 @@ class MockService {
         name: 'Maria García',
         contactPreferences: 'email',
         email: 'maria@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 80)),
       ),
@@ -227,7 +224,6 @@ class MockService {
         name: 'Luis Rodriguez',
         contactPreferences: 'push',
         email: 'luis@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 60)),
       ),
@@ -236,7 +232,6 @@ class MockService {
         name: 'Ana Silva',
         contactPreferences: 'sms',
         email: 'ana@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 40)),
       ),
@@ -245,7 +240,6 @@ class MockService {
         name: 'Juan Pérez',
         contactPreferences: 'push',
         email: 'juan.perez@university.edu',
-        password: 'hashed_password',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 10)),
       ),
@@ -255,7 +249,6 @@ class MockService {
       name: userId,
       contactPreferences: 'push',
       email: 'user@university.edu',
-      password: 'hashed',
       role: 'student',
       createdAt: DateTime.now().subtract(const Duration(days: 1)),
     );
@@ -272,7 +265,7 @@ class MockService {
         images: ['https://picsum.photos/seed/iphone/400/400'],
         status: 'active',
         userId: 'user/$userId',
-        subCategoryId: 'category/electronics/sub_category/phones',
+        categoryId: 'categories/electronics',
         createdAt: DateTime.now().subtract(const Duration(days: 5)),
       ),
       Post(
@@ -283,7 +276,7 @@ class MockService {
         images: ['https://picsum.photos/seed/stats/400/400'],
         status: 'active',
         userId: 'user/$userId',
-        subCategoryId: 'category/books/sub_category/textbooks',
+        categoryId: 'categories/books',
         createdAt: DateTime.now().subtract(const Duration(days: 7)),
       ),
     ];
@@ -300,7 +293,7 @@ class MockService {
         images: ['https://picsum.photos/seed/stand/400/400'],
         status: 'sold',
         userId: 'user/u10',
-        subCategoryId: 'category/electronics/sub_category/accessories',
+        categoryId: 'categories/electronics',
         createdAt: DateTime.now().subtract(const Duration(days: 10)),
       ),
     ];
@@ -313,82 +306,21 @@ class MockService {
   }
 
   static Future<List<Chat>> getUserChats(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return [
-      Chat(
-        id: 'chat1',
-        user1Id: userId,
-        user2Id: 'u789',
-        messages1: [
-          ChatMessage(
-            id: 'm101',
-            senderId: userId,
-            receiverId: 'u789',
-            postId: 'post/h1',
-            content: 'Is this book still available?',
-            sentAt: DateTime.now().subtract(const Duration(hours: 2)),
-            read: true,
-          ),
-        ],
-      ),
-      Chat(
-        id: 'chat2',
-        user1Id: 'u222',
-        user2Id: userId,
-        messages1: [
-          ChatMessage(
-            id: 'm102',
-            senderId: 'u222',
-            receiverId: userId,
-            content: 'Sí, podemos vernos mañana',
-            sentAt: DateTime.now().subtract(const Duration(hours: 5)),
-            read: true,
-          ),
-        ],
-      ),
-    ];
+    throw UnimplementedError(
+      'MockService.getUserChats ya no está soportado. Usa ChatService.',
+    );
   }
 
   static Future<List<ChatMessage>> getChatMessages(String chatId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return [
-      ChatMessage(
-        id: 'm1',
-        senderId: 'buyer1',
-        receiverId: 'u_current',
-        content: 'Hola, me interesa el producto',
-        sentAt: DateTime.now().subtract(const Duration(hours: 3)),
-        read: true,
-      ),
-      ChatMessage(
-        id: 'm2',
-        senderId: 'u_current',
-        receiverId: 'buyer1',
-        content: 'Hola! Sí, está disponible',
-        sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
-        read: true,
-      ),
-      ChatMessage(
-        id: 'm3',
-        senderId: 'buyer1',
-        receiverId: 'u_current',
-        content: '¿Sigue disponible?',
-        sentAt: DateTime.now().subtract(const Duration(hours: 2)),
-        read: false,
-      ),
-    ];
-  }
-
-  static Future<bool> createPost(Map<String, dynamic> postData) async {
-    await Future.delayed(const Duration(seconds: 1));
-    // Simular guardado exitoso
-    return true;
+    throw UnimplementedError(
+      'MockService.getChatMessages ya no está soportado. Usa ChatService.',
+    );
   }
 
   static Future<bool> sendMessage(String chatId, String content) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    // Simular envío exitoso
-    return true;
+    throw UnimplementedError(
+      'MockService.sendMessage ya no está soportado. Usa ChatService.',
+    );
   }
 
   static Future<String> createChat(String postId, String otherUserId) async {
@@ -411,7 +343,7 @@ class MockService {
         images: ['https://picsum.photos/seed/macbook/400/400'],
         status: 'active',
         userId: 'user/$userId',
-        subCategoryId: 'category/electronics/sub_category/laptops',
+        categoryId: 'categories/electronics',
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
       ),
       chatId: 'chat_1',
@@ -420,7 +352,6 @@ class MockService {
         name: 'Carlos López',
         contactPreferences: 'push',
         email: 'carlos@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 100)),
       ),
@@ -443,7 +374,7 @@ class MockService {
         images: ['https://picsum.photos/seed/calc/400/400'],
         status: 'sold',
         userId: 'user/$userId',
-        subCategoryId: 'category/books/sub_category/textbooks',
+        categoryId: 'categories/books',
         createdAt: DateTime.now().subtract(const Duration(days: 5)),
       ),
       chatId: 'chat_2',
@@ -452,7 +383,6 @@ class MockService {
         name: 'María Rodríguez',
         contactPreferences: 'email',
         email: 'maria@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 80)),
       ),
@@ -475,7 +405,7 @@ class MockService {
         images: ['https://picsum.photos/seed/iphone/400/400'],
         status: 'active',
         userId: 'user/$userId',
-        subCategoryId: 'category/electronics/sub_category/phones',
+        categoryId: 'categories/electronics',
         createdAt: DateTime.now().subtract(const Duration(days: 1)),
       ),
       chatId: 'chat_3',
@@ -484,7 +414,6 @@ class MockService {
         name: 'Ana Martínez',
         contactPreferences: 'push',
         email: 'ana@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 60)),
       ),
@@ -507,7 +436,7 @@ class MockService {
         images: ['https://picsum.photos/seed/stats/400/400'],
         status: 'active',
         userId: 'user/$userId',
-        subCategoryId: 'category/books/sub_category/textbooks',
+        categoryId: 'categories/books',
         createdAt: DateTime.now().subtract(const Duration(days: 7)),
       ),
       chatId: 'chat_4',
@@ -516,7 +445,6 @@ class MockService {
         name: 'Pedro Gómez',
         contactPreferences: 'sms',
         email: 'pedro@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 40)),
       ),
@@ -531,7 +459,7 @@ class MockService {
         images: ['https://picsum.photos/seed/fridge/400/400'],
         status: 'sold',
         userId: 'user/$userId',
-        subCategoryId: 'category/appliances/sub_category/fridge',
+        categoryId: 'categories/appliances',
         createdAt: DateTime.now().subtract(const Duration(days: 10)),
       ),
       chatId: 'chat_5',
@@ -540,7 +468,6 @@ class MockService {
         name: 'Luis Fernández',
         contactPreferences: 'push',
         email: 'luis@university.edu',
-        password: 'hashed',
         role: 'student',
         createdAt: DateTime.now().subtract(const Duration(days: 50)),
       ),
