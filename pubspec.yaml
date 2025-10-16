@@ -62,13 +62,14 @@ dev_dependencies:
   flutter_lints: ^3.0.1
   mockito: ^5.4.4
   build_runner: ^2.4.9
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
   
   # To add assets to your application, add an assets section:
-  # assets:
-  #   - assets/images/
+  assets:
+    - icono_marketplace.png
   #   - assets/icons/
   
   # Fonts (optional)
@@ -82,3 +83,10 @@ flutter:
   #         weight: 600
   #       - asset: fonts/Poppins-Bold.ttf
   #         weight: 700
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "icono_marketplace.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "icono_marketplace.png"
