@@ -349,7 +349,8 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                       context.push('/confirm_purchase', extra: {
                         'role': 'seller',
                         'postId': saleData.post.id,
-                        'sellerId': user?.id ?? '',
+                        'buyerId': saleData.buyer?.id ?? '',
+                        'saleId': saleData.sale?.id ?? '',
                       });
                     },
                     style: ElevatedButton.styleFrom(

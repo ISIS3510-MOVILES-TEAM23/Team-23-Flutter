@@ -42,7 +42,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   @override
   void initState() {
     super.initState();
-    filtersContext = FiltersContext(categoryId: widget.categoryId);
+    filtersContext = FiltersContext(categoryId: widget.categoryId, status: statusFilter);
     _loadData();
   }
 
@@ -75,7 +75,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
       );
 
       // Update filters context with correct category ID
-      filtersContext = FiltersContext(categoryId: category.id);
+      filtersContext = FiltersContext(categoryId: category.id, status: statusFilter);
       
       // Set the appropriate filter service
       _setFilterService();
