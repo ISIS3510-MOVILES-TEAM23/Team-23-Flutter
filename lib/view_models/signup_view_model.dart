@@ -18,6 +18,7 @@ class SignupViewModel extends ChangeNotifier {
   String email = '';
   String password = '';
   String confirmPassword = '';
+  String? major;
   bool isLoading = false;
 
   void setName(String value) {
@@ -36,6 +37,11 @@ class SignupViewModel extends ChangeNotifier {
     confirmPassword = value;
   }
 
+  void setMajor(String? value) {
+    major = value;
+    notifyListeners();
+  }
+
   bool isUniandes(String e) =>
       e.trim().toLowerCase().endsWith('@uniandes.edu.co');
 
@@ -50,6 +56,9 @@ class SignupViewModel extends ChangeNotifier {
   Future<User?> signup() async {
     if (name.trim().isEmpty) {
       throw Exception('El nombre es requerido');
+    }
+    if (major == null || major!.isEmpty) {
+      throw Exception('La carrera es requerida');
     }
     if (!isUniandes(email)) {
       throw Exception('Usa tu correo @uniandes.edu.co');
@@ -86,6 +95,7 @@ class SignupViewModel extends ChangeNotifier {
           .doc(user.uid)
           .set({
             'name': name.trim(),
+            'major': major,
             'is_verified': false
           }, SetOptions(merge: true));
 

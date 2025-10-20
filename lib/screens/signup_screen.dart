@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../view_models/signup_view_model.dart';
+import '../utils/majors.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -133,6 +134,23 @@ class _SignupScreenState extends State<SignupScreen> {
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.email),
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    value: viewModel.major,
+                    decoration: const InputDecoration(
+                      labelText: 'Major / Carrera',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.school),
+                    ),
+                    items: MAJORS.map((String major) {
+                      return DropdownMenuItem<String>(
+                        value: major,
+                        child: Text(major),
+                      );
+                    }).toList(),
+                    onChanged: viewModel.setMajor,
+                    isExpanded: true,
                   ),
                   const SizedBox(height: 20),
                   TextField(

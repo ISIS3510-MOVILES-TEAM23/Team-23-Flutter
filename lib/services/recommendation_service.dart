@@ -131,15 +131,24 @@ class RecommendationService {
     }
 
     if (catWeights.isEmpty) {
-      dlog('Sin señales → fallback: últimos activos globales');
+      dlog('Sin señales → fallback: últimos posts globales');
       final latest = await _db
           .collection('posts')
-          .where('status', isEqualTo: 'active')
           .orderBy('created_at', descending: true)
-          .limit(limit)
+          .limit(limit * 2)
           .get();
-      dlog('Fallback resultados: ${latest.docs.length}');
-      return latest.docs.map(_postFromDoc).whereType<Post>().toList();
+      dlog('Fallback resultados totales: ${latest.docs.length}');
+      
+      // Filter active posts in code and exclude own posts
+      final activePosts = latest.docs
+          .map(_postFromDoc)
+          .whereType<Post>()
+          .where((p) => p.status == 'active' && _uidOnly(p.userId) != uid)
+          .take(limit)
+          .toList();
+      
+      dlog('Fallback posts activos finales: ${activePosts.length}');
+      return activePosts;
     }
 
     final sortedCats = catWeights.entries.toList()
@@ -162,7 +171,6 @@ class RecommendationService {
       dlog('Buscando candidatos en posts.category_name == "$catName"');
       final snap = await _db
           .collection('posts')
-          .where('status', isEqualTo: 'active')
           .where('category_name', isEqualTo: catName)
           .orderBy('created_at', descending: true)
           .limit(50)
@@ -179,6 +187,12 @@ class RecommendationService {
         final post = _postFromDoc(d);
         if (post == null) {
           dlog('    SKIP parse fail: ${d.id}');
+          continue;
+        }
+
+        // Check status in code instead of query
+        if (post.status != 'active') {
+          dlog('    SKIP no activo: ${post.id} (status: ${post.status})');
           continue;
         }
 
@@ -201,10 +215,9 @@ class RecommendationService {
     }
 
     if (out.length < limit) {
-      dlog('Faltan ${limit - out.length} → fallback extra activos globales');
+      dlog('Faltan ${limit - out.length} → fallback extra posts globales');
       final extra = await _db
           .collection('posts')
-          .where('status', isEqualTo: 'active')
           .orderBy('created_at', descending: true)
           .limit(limit * 2)
           .get();
@@ -214,6 +227,10 @@ class RecommendationService {
 
         final post = _postFromDoc(d);
         if (post == null) continue;
+        
+        // Check status in code
+        if (post.status != 'active') continue;
+        
         if (_uidOnly(post.userId) == uid) continue;
 
         out.add(post);

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../services/on_campus_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/majors.dart';
 import '../widgets/product_card.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -96,7 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _updateProfile(
-      String? name, String? email, String? password) async {
+      String? name, String? email, String? password, String? major) async {
     if (currentUser == null) return;
 
     try {
@@ -105,6 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         name: name ?? currentUser!.name,
         email: email ?? currentUser!.email,
         password: password,
+        major: major ?? currentUser!.major,
       );
       // Reload user data
       await _loadUserData();
@@ -117,75 +119,132 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameController = TextEditingController(text: currentUser?.name);
     final emailController = TextEditingController(text: currentUser?.email);
     final passwordController = TextEditingController();
+    String? selectedMajor = currentUser?.major;
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Profile'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const TextField(
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'New Password (optional)',
-                  prefixIcon: Icon(Icons.lock),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Save changes
-                try {
-                  _updateProfile(
-                    nameController.text,
-                    emailController.text,
-                    passwordController.text.isNotEmpty
-                        ? passwordController.text
-                        : null,
-                  );
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile updated successfully'),
-                      backgroundColor: AppColors.success,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Profile'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Name',
+                        prefixIcon: Icon(Icons.person),
+                      ),
                     ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to update profile: $e'),
-                      backgroundColor: AppColors.error,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email),
+                      ),
                     ),
-                  );
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedMajor,
+                      decoration: InputDecoration(
+                        labelText: 'Major / Carrera',
+                        prefixIcon: const Icon(Icons.school),
+                        hintText: 'Selecciona tu carrera',
+                        helperText: selectedMajor == null ? 'Requerido' : null,
+                        helperStyle: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      items: MAJORS.map((String major) {
+                        return DropdownMenuItem<String>(
+                          value: major,
+                          child: Text(major),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedMajor = newValue;
+                        });
+                      },
+                      isExpanded: true,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'New Password (optional)',
+                        prefixIcon: Icon(Icons.lock),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Validar que se haya seleccionado una carrera
+                    if (selectedMajor == null || selectedMajor!.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Por favor selecciona tu carrera'),
+                          backgroundColor: Colors.orange.shade700,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    // Validar que el nombre no esté vacío
+                    if (nameController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('El nombre no puede estar vacío'),
+                          backgroundColor: Colors.orange.shade700,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    // Save changes
+                    try {
+                      _updateProfile(
+                        nameController.text,
+                        emailController.text,
+                        passwordController.text.isNotEmpty
+                            ? passwordController.text
+                            : null,
+                        selectedMajor,
+                      );
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Profile updated successfully'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to update profile: $e'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -295,6 +354,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       letterSpacing: 0.3,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  if (currentUser?.major != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.primaryColor.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.school,
+                            size: 16,
+                            color: AppColors.primaryColor,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            currentUser!.major!,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: _showEditProfileDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.orange.shade700,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Agrega tu carrera en Editar Perfil',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.orange.shade700,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 12,
+                              color: Colors.orange.shade700,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

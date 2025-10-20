@@ -1,8 +1,15 @@
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../../models/models.dart';
 import '../../services/firestore_service.dart';
 
 class UserRepository {
   UserRepository();
+
+  // Get current user ID
+  Future<String?> getCurrentUserId() async {
+    final firebaseUser = auth.FirebaseAuth.instance.currentUser;
+    return firebaseUser?.uid;
+  }
 
   // Get current user
   Future<User?> getCurrentUser() async {

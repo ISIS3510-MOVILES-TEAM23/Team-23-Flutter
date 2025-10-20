@@ -3,6 +3,7 @@ import '../models/models.dart';
 import '../data/repositories/post_repository.dart';
 import '../data/repositories/user_repository.dart';
 import '../data/repositories/chat_repository.dart';
+import '../services/firestore_service.dart';
 
 class ProductDetailViewModel extends ChangeNotifier {
   final PostRepository _postRepository;
@@ -31,6 +32,12 @@ class ProductDetailViewModel extends ChangeNotifier {
       User? user;
       if (prod != null) {
         user = await _userRepository.getUserById(prod.userId);
+        
+        // Registrar click del producto SOLO si NO es propio
+        final currentUserId = await _userRepository.getCurrentUserId();
+        if (currentUserId != null && prod.userId != currentUserId) {
+          _logProductClick(prod);
+        }
       }
 
       product = prod;
@@ -42,6 +49,30 @@ class ProductDetailViewModel extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
+  }
+  
+  // Registrar click de producto en product_click_events (solo para productos de otros)
+  void _logProductClick(Post post) {
+    try {
+      final categoryName = _resolveCategoryName(post.categoryId);
+      FirestoreService.logProductClickEvent(
+        postId: post.id,
+        category: categoryName,
+        source: 'product_detail_view',
+      );
+    } catch (e) {
+      // Error silencioso, no afectar la carga del producto
+      print('Error logging product click: $e');
+    }
+  }
+  
+  String? _resolveCategoryName(String? rawCategory) {
+    if (rawCategory == null) return null;
+    final trimmed = rawCategory.trim();
+    if (trimmed.isEmpty) return null;
+    if (!trimmed.contains('/')) return trimmed;
+    final parts = trimmed.split('/');
+    return parts.isNotEmpty ? parts.last : trimmed;
   }
 
   Future<String> initiateChat() async {
