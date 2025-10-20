@@ -107,6 +107,35 @@ class FirestoreService {
     }
   }
 
+  // Registrar click/vista de producto para recomendaciones
+  static Future<void> logProductClickEvent({
+    required String postId,
+    String? category,
+    String? source,
+  }) async {
+    try {
+      final userId = _auth.currentUser?.uid ?? 'anonymous';
+      
+      if (userId == 'anonymous') return; // No registrar clicks de usuarios anónimos
+
+      final postRef = _db.collection('posts').doc(postId);
+
+      final payload = <String, dynamic>{
+        'post_ref': postRef,
+        'category': category,
+        'source': source ?? 'unknown',
+        'timestamp': FieldValue.serverTimestamp(),
+        'userId': userId,
+      };
+
+      print('👆 [FirestoreService] Logging product click event -> postId: $postId, userId: $userId');
+      await _db.collection('product_click_events').add(payload);
+    } catch (e, st) {
+      print('⚠️ [FirestoreService] Error logging product click event: $e');
+      print(st);
+    }
+  }
+
   static String _ensureSessionId() {
     _sessionId ??= _uuid.v4();
     return _sessionId!;
@@ -448,6 +477,7 @@ class FirestoreService {
         name: firebaseUser.displayName ?? 'New User',
         contactPreferences: '',
         role: '',
+        major: null,
         createdAt: DateTime.now(),
       );
       await userDoc.set(newUser.toJson());
@@ -460,12 +490,20 @@ class FirestoreService {
     required String name,
     required String email,
     String? password,
+    String? major,
   }) async {
     final userDoc = _db.collection('users').doc(userId);
-    await userDoc.update({
+    final updateData = {
       'name': name,
       'email': email,
-    });
+    };
+    
+    if (major != null) {
+      updateData['major'] = major;
+    }
+    
+    await userDoc.update(updateData);
+    
     if (password != null && password.isNotEmpty) {
       final firebaseUser = _auth.currentUser;
       if (firebaseUser != null && firebaseUser.uid == userId) {

@@ -61,9 +61,10 @@ class _HomeScreenState extends State<HomeScreen> {
           body: viewModel.isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                  // 👇 NUEVO: refresca productos y recomendaciones
+                  // Refresca productos, major-based y recomendaciones
                   onRefresh: () async {
                     await viewModel.loadProducts();
+                    await viewModel.loadMajorBasedProducts();
                     setState(() {
                       _recsFuture = RecommendationService()
                           .fetchRecommendations(
@@ -128,47 +129,70 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  // Highlighted Products Section
+                  // Major-Based Products Section (Popular en tu carrera)
                   SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 20),
-                          child: Text(
-                            'Highlighted Products for you!',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.school,
+                                size: 20,
+                                color: AppColors.primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  viewModel.majorBasedTitle ?? 'Featured',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 240,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: viewModel.highlightedProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = viewModel.highlightedProducts[index];
-                          return Container(
-                            width: 180,
-                            margin: const EdgeInsets.only(right: 16),
-                            child: ProductCard(
-                              product: product,
-                              onTap: () {
-                                viewModel.logProductClick(
-                                  productId: product.id,
-                                  categoryId: product.categoryId,
-                                  source: 'highlighted_carousel',
-                                );
-                                context.go('/home/product/${product.id}');
-                              },
-                            ),
-                          );
-                        },
-                      ),
+                          child: viewModel.isLoadingMajorBased
+                              ? const Center(child: CircularProgressIndicator())
+                              : viewModel.majorBasedProducts.isEmpty
+                                  ? const Center(
+                                      child: Text(
+                                        'No posts available yet',
+                                        style: TextStyle(color: AppColors.textSecondary),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                      itemCount: viewModel.majorBasedProducts.length,
+                                      itemBuilder: (context, index) {
+                                        final product = viewModel.majorBasedProducts[index];
+                                        return Container(
+                                          width: 180,
+                                          margin: const EdgeInsets.only(right: 16),
+                                          child: ProductCard(
+                                            product: product,
+                                            onTap: () {
+                                              viewModel.logProductClick(
+                                                productId: product.id,
+                                                categoryId: product.categoryId,
+                                                source: 'major_based_carousel',
+                                                ownerId: product.userId,
+                                              );
+                                              context.go('/home/product/${product.id}');
+                                            },
+                                          ),
+                                        );
+                                      },
+                                    ),
                         ),
                       ],
                     ),
@@ -177,10 +201,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   // 🔻 NUEVO: Recommended for you (usa _recsFuture)
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: const Text(
-                        'Recommended for you',
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'Based on your recent activity',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -236,6 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       productId: product.id,
                                       categoryId: product.categoryId,
                                       source: 'recommended',
+                                      ownerId: product.userId,
                                     );
                                     context
                                         .go('/home/product/${product.id}');
@@ -286,6 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? 'search_bar'
                                 : 'home_feed',
                             searchQuery: viewModel.lastSearchQuery,
+                            ownerId: product.userId,
                           );
                           context.go('/home/product/${product.id}');
                         },

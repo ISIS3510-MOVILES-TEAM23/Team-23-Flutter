@@ -4,6 +4,7 @@ class User {
   final String contactPreferences; // 'push' | 'email'
   final String email;
   final String role; // 'student' | 'professor' | 'staff'
+  final String? major; // carrera del usuario
   final DateTime createdAt;
 
   const User({
@@ -12,6 +13,7 @@ class User {
     required this.contactPreferences,
     required this.email,
     required this.role,
+    this.major,
     required this.createdAt,
   });
 
@@ -22,6 +24,7 @@ class User {
       contactPreferences: json['contact_preferences'],
       email: json['email'],
       role: json['role'],
+      major: json['major'],
       createdAt: DateTime.parse(json['created_at'])
     );
   }
@@ -33,6 +36,7 @@ class User {
       'contact_preferences': contactPreferences,
       'email': email,
       'role': role,
+      'major': major,
       'created_at': createdAt.toIso8601String(),
     };
   }

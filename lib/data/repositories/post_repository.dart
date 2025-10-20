@@ -61,6 +61,24 @@ class PostRepository {
     );
   }
 
+  // Log product click event
+  Future<void> logProductClickEvent({
+    required String postId,
+    String? category,
+    String? source,
+  }) async {
+    await FirestoreService.logProductClickEvent(
+      postId: postId,
+      category: category,
+      source: source,
+    );
+  }
+
+  // Get current user
+  Future<User?> getCurrentUser() async {
+    return await FirestoreService.getCurrentUser();
+  }
+
   // Get user posts with chats
   Future<List<PostWithChat>> getUserPostsWithChats(String userId) async {
     return await FirestoreService.getUserPostsWithChats(userId);
