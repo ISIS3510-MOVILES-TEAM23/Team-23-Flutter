@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 import 'services/firestore_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_colors.dart';
 
 // Tiempo de inicio para medir duración del lanzamiento
@@ -61,10 +62,21 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    // Inicializar notificaciones push
+    _initializeNotifications();
     // Registrar el tiempo de inicio después de que el primer frame se renderice
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _logAppStartTime();
     });
+  }
+
+  Future<void> _initializeNotifications() async {
+    try {
+      await NotificationService.initialize();
+      debugPrint('✅ Notification service initialized');
+    } catch (e) {
+      debugPrint('❌ Error initializing notifications: $e');
+    }
   }
 
   Future<void> _logAppStartTime() async {

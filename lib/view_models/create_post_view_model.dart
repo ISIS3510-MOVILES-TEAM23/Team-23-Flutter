@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/models.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/post_repository.dart';
 import '../data/repositories/storage_repository.dart';
 import '../data/repositories/user_repository.dart';
 import '../services/openrouter_service.dart';
+import '../services/notification_service.dart';
 
 class CreatePostViewModel extends ChangeNotifier {
   final CategoryRepository _categoryRepository;
@@ -205,6 +207,27 @@ class CreatePostViewModel extends ChangeNotifier {
         throw Exception('Category not selected');
       }
 
+      // Obtener ubicación actual (opcional)
+      double? latitude;
+      double? longitude;
+      try {
+        final permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 10),
+            ),
+          );
+          latitude = position.latitude;
+          longitude = position.longitude;
+        }
+      } catch (e) {
+        // Continuar sin ubicación si hay error
+        debugPrint('Could not get location: $e');
+      }
+
       final product = Post(
         id: postId,
         title: titleController.text.trim(),
@@ -215,6 +238,8 @@ class CreatePostViewModel extends ChangeNotifier {
         categoryId: 'categories/$selectedCategory',
         images: imagePaths,
         createdAt: DateTime.now(),
+        latitude: latitude,
+        longitude: longitude,
       );
 
       final data = product.toJson();
@@ -225,6 +250,20 @@ class CreatePostViewModel extends ChangeNotifier {
       data['category_name'] = selectedCategoryName ?? '';
 
       final success = await _postRepository.createPost(data, forceId: postId);
+
+      // 🔔 Enviar notificaciones a usuarios interesados (en background)
+      if (success) {
+        NotificationService.notifyInterestedUsers(
+          postId: postId,
+          postTitle: titleController.text.trim(),
+          categoryName: selectedCategoryName ?? '',
+          price: priceInCents,
+          ownerId: user.id,
+        ).catchError((e) {
+          debugPrint('❌ Error sending notifications: $e');
+          // No lanzar error, las notificaciones son "best effort"
+        });
+      }
 
       isLoading = false;
       notifyListeners();

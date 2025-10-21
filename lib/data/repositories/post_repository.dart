@@ -1,8 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../../models/models.dart';
 import '../../services/firestore_service.dart';
 
 class PostRepository {
   PostRepository();
+
+  // Get current user ID
+  String? getCurrentUserId() {
+    return auth.FirebaseAuth.instance.currentUser?.uid;
+  }
 
   // Get highlighted posts
   Future<List<Post>> getHighlightedPosts() async {
