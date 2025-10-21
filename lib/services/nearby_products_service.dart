@@ -3,7 +3,48 @@ import 'package:geolocator/geolocator.dart';
 import '../models/models.dart';
 
 /// Service que maneja la lógica de negocio para productos cercanos
+/// y la obtención de ubicación del dispositivo
 class NearbyProductsService {
+  /// Obtiene la ubicación actual del dispositivo, solicitando permisos si es necesario
+  /// Retorna Position si se obtuvo exitosamente, null en caso contrario
+  Future<Position?> getCurrentLocationWithPermissions() async {
+    try {
+      // Verificar permisos actuales
+      LocationPermission permission = await Geolocator.checkPermission();
+      
+      // Si fue denegado, solicitar permiso
+      if (permission == LocationPermission.denied) {
+        debugPrint('📍 [NearbyProductsService] Requesting location permission...');
+        permission = await Geolocator.requestPermission();
+      }
+      
+      // Si fue denegado permanentemente, no podemos hacer nada
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('⚠️ [NearbyProductsService] Location permission denied forever');
+        return null;
+      }
+      
+      // Si tenemos permisos, obtener ubicación
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        debugPrint('✅ [NearbyProductsService] Location permission granted');
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 10),
+          ),
+        );
+        debugPrint('📍 [NearbyProductsService] Location obtained: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}');
+        return position;
+      }
+      
+      debugPrint('⚠️ [NearbyProductsService] Location permission not granted');
+      return null;
+    } catch (e) {
+      debugPrint('❌ [NearbyProductsService] Error getting location: $e');
+      return null;
+    }
+  }
   /// Filtra y ordena productos por distancia desde una ubicación dada
   Future<List<Post>> filterNearbyProducts({
     required List<Post> allPosts,

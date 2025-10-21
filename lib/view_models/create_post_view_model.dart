@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
 import '../models/models.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/post_repository.dart';
@@ -9,6 +8,7 @@ import '../data/repositories/storage_repository.dart';
 import '../data/repositories/user_repository.dart';
 import '../services/openrouter_service.dart';
 import '../services/notification_service.dart';
+import '../services/nearby_products_service.dart';
 
 class CreatePostViewModel extends ChangeNotifier {
   final CategoryRepository _categoryRepository;
@@ -16,6 +16,7 @@ class CreatePostViewModel extends ChangeNotifier {
   final StorageRepository _storageRepository;
   final UserRepository _userRepository;
   final OpenRouterService _openRouterService;
+  final NearbyProductsService _nearbyService;
 
   CreatePostViewModel({
     CategoryRepository? categoryRepository,
@@ -23,11 +24,13 @@ class CreatePostViewModel extends ChangeNotifier {
     StorageRepository? storageRepository,
     UserRepository? userRepository,
     OpenRouterService? openRouterService,
+    NearbyProductsService? nearbyProductsService,
   })  : _categoryRepository = categoryRepository ?? CategoryRepository(),
         _postRepository = postRepository ?? PostRepository(),
         _storageRepository = storageRepository ?? StorageRepository(),
         _userRepository = userRepository ?? UserRepository(),
-        _openRouterService = openRouterService ?? OpenRouterService();
+        _openRouterService = openRouterService ?? OpenRouterService(),
+        _nearbyService = nearbyProductsService ?? NearbyProductsService();
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -207,25 +210,13 @@ class CreatePostViewModel extends ChangeNotifier {
         throw Exception('Category not selected');
       }
 
-      // Obtener ubicación actual (opcional)
+      // Obtener ubicación actual (opcional) - delegado al Service
       double? latitude;
       double? longitude;
-      try {
-        final permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.always ||
-            permission == LocationPermission.whileInUse) {
-          final position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.medium,
-              timeLimit: Duration(seconds: 10),
-            ),
-          );
-          latitude = position.latitude;
-          longitude = position.longitude;
-        }
-      } catch (e) {
-        // Continuar sin ubicación si hay error
-        debugPrint('Could not get location: $e');
+      final position = await _nearbyService.getCurrentLocationWithPermissions();
+      if (position != null) {
+        latitude = position.latitude;
+        longitude = position.longitude;
       }
 
       final product = Post(
