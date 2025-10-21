@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -13,6 +14,15 @@ DateTime? _appStartTime;
 void main() async {
   _appStartTime = DateTime.now();
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Cargar variables de entorno
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint('✅ Variables de entorno cargadas correctamente');
+  } catch (e) {
+    debugPrint('⚠️ No se pudo cargar .env: $e');
+    // Continuar sin .env (las features de IA no funcionarán)
+  }
 
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(

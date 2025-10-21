@@ -6,22 +6,26 @@ import '../data/repositories/category_repository.dart';
 import '../data/repositories/post_repository.dart';
 import '../data/repositories/storage_repository.dart';
 import '../data/repositories/user_repository.dart';
+import '../services/openrouter_service.dart';
 
 class CreatePostViewModel extends ChangeNotifier {
   final CategoryRepository _categoryRepository;
   final PostRepository _postRepository;
   final StorageRepository _storageRepository;
   final UserRepository _userRepository;
+  final OpenRouterService _openRouterService;
 
   CreatePostViewModel({
     CategoryRepository? categoryRepository,
     PostRepository? postRepository,
     StorageRepository? storageRepository,
     UserRepository? userRepository,
+    OpenRouterService? openRouterService,
   })  : _categoryRepository = categoryRepository ?? CategoryRepository(),
         _postRepository = postRepository ?? PostRepository(),
         _storageRepository = storageRepository ?? StorageRepository(),
-        _userRepository = userRepository ?? UserRepository();
+        _userRepository = userRepository ?? UserRepository(),
+        _openRouterService = openRouterService ?? OpenRouterService();
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -32,6 +36,7 @@ class CreatePostViewModel extends ChangeNotifier {
   List<String> imagePaths = [];
   List<Category> categories = [];
   bool isLoading = false;
+  bool isAnalyzing = false;
   String? _postId;
 
   String ensurePostId() {
@@ -130,6 +135,54 @@ class CreatePostViewModel extends ChangeNotifier {
     selectedCategory = categoryId;
     selectedCategoryName = matched.name;
     notifyListeners();
+  }
+
+  /// Analiza la imagen con IA y autocompleta los campos del formulario
+  Future<void> analyzeWithAI({String? model}) async {
+    if (imagePaths.isEmpty) {
+      throw Exception('Necesitas subir al menos una imagen primero');
+    }
+
+    if (categories.isEmpty) {
+      throw Exception('No hay categorías disponibles');
+    }
+
+    try {
+      isAnalyzing = true;
+      notifyListeners();
+
+      final categoryNames = categories.map((c) => c.name).toList();
+
+      final suggestions = await _openRouterService.analyzeProductImage(
+        imageUrl: imagePaths.first,
+        availableCategories: categoryNames,
+        model: model,
+      );
+
+      // Autocompletar los campos
+      titleController.text = suggestions.title;
+      descriptionController.text = suggestions.description;
+      priceController.text = suggestions.price.toStringAsFixed(2);
+
+      // Seleccionar categoría por nombre
+      final matchedCategory = categories.firstWhere(
+        (c) => c.name.toLowerCase() == suggestions.category.toLowerCase(),
+        orElse: () => categories.first,
+      );
+      
+      selectedCategory = matchedCategory.id;
+      selectedCategoryName = matchedCategory.name;
+
+      isAnalyzing = false;
+      notifyListeners();
+
+      debugPrint('✅ [CreatePostVM] Análisis completado: $suggestions');
+    } catch (e) {
+      isAnalyzing = false;
+      notifyListeners();
+      debugPrint('❌ [CreatePostVM] Error en análisis: $e');
+      rethrow;
+    }
   }
 
   Future<bool> submitPost() async {
