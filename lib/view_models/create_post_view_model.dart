@@ -7,6 +7,8 @@ import '../data/repositories/post_repository.dart';
 import '../data/repositories/storage_repository.dart';
 import '../data/repositories/user_repository.dart';
 import '../services/openrouter_service.dart';
+import '../services/notification_service.dart';
+import '../services/nearby_products_service.dart';
 
 class CreatePostViewModel extends ChangeNotifier {
   final CategoryRepository _categoryRepository;
@@ -14,6 +16,7 @@ class CreatePostViewModel extends ChangeNotifier {
   final StorageRepository _storageRepository;
   final UserRepository _userRepository;
   final OpenRouterService _openRouterService;
+  final NearbyProductsService _nearbyService;
 
   CreatePostViewModel({
     CategoryRepository? categoryRepository,
@@ -21,11 +24,13 @@ class CreatePostViewModel extends ChangeNotifier {
     StorageRepository? storageRepository,
     UserRepository? userRepository,
     OpenRouterService? openRouterService,
+    NearbyProductsService? nearbyProductsService,
   })  : _categoryRepository = categoryRepository ?? CategoryRepository(),
         _postRepository = postRepository ?? PostRepository(),
         _storageRepository = storageRepository ?? StorageRepository(),
         _userRepository = userRepository ?? UserRepository(),
-        _openRouterService = openRouterService ?? OpenRouterService();
+        _openRouterService = openRouterService ?? OpenRouterService(),
+        _nearbyService = nearbyProductsService ?? NearbyProductsService();
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -205,6 +210,15 @@ class CreatePostViewModel extends ChangeNotifier {
         throw Exception('Category not selected');
       }
 
+      // Obtener ubicación actual (opcional) - delegado al Service
+      double? latitude;
+      double? longitude;
+      final position = await _nearbyService.getCurrentLocationWithPermissions();
+      if (position != null) {
+        latitude = position.latitude;
+        longitude = position.longitude;
+      }
+
       final product = Post(
         id: postId,
         title: titleController.text.trim(),
@@ -215,6 +229,8 @@ class CreatePostViewModel extends ChangeNotifier {
         categoryId: 'categories/$selectedCategory',
         images: imagePaths,
         createdAt: DateTime.now(),
+        latitude: latitude,
+        longitude: longitude,
       );
 
       final data = product.toJson();
@@ -225,6 +241,20 @@ class CreatePostViewModel extends ChangeNotifier {
       data['category_name'] = selectedCategoryName ?? '';
 
       final success = await _postRepository.createPost(data, forceId: postId);
+
+      // 🔔 Enviar notificaciones a usuarios interesados (en background)
+      if (success) {
+        NotificationService.notifyInterestedUsers(
+          postId: postId,
+          postTitle: titleController.text.trim(),
+          categoryName: selectedCategoryName ?? '',
+          price: priceInCents,
+          ownerId: user.id,
+        ).catchError((e) {
+          debugPrint('❌ Error sending notifications: $e');
+          // No lanzar error, las notificaciones son "best effort"
+        });
+      }
 
       isLoading = false;
       notifyListeners();

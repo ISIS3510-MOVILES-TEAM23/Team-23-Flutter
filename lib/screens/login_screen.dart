@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../view_models/login_view_model.dart';
+import '../utils/validators.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +12,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   late LoginViewModel viewModel;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -25,6 +27,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _logIn() async {
+    // Validar formulario
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Logging in...')));
     
@@ -56,7 +63,9 @@ class _LoginScreenState extends State<LoginScreen> {
           body: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
-              child: Column(
+              child: Form(
+                key: _formKey,
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -107,20 +116,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  TextField(
+                  TextFormField(
                     onChanged: viewModel.setEmail,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: Validators.validateEmail,
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email_outlined),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  TextField(
+                  TextFormField(
                     onChanged: viewModel.setPassword,
                     obscureText: true,
+                    validator: Validators.validatePassword,
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock_outline),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -157,7 +171,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -3,12 +3,17 @@ import '../models/models.dart';
 import '../data/repositories/post_repository.dart';
 import '../services/recommendation_service.dart';
 import '../services/major_recommendations_service.dart';
+import '../services/nearby_products_service.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final PostRepository _postRepository;
+  final NearbyProductsService _nearbyService;
 
-  HomeViewModel({PostRepository? postRepository})
-      : _postRepository = postRepository ?? PostRepository();
+  HomeViewModel({
+    PostRepository? postRepository,
+    NearbyProductsService? nearbyProductsService,
+  })  : _postRepository = postRepository ?? PostRepository(),
+        _nearbyService = nearbyProductsService ?? NearbyProductsService();
 
   List<Post> highlightedProducts = [];
   List<Post> newProducts = [];
@@ -27,6 +32,10 @@ class HomeViewModel extends ChangeNotifier {
   bool isLoadingRecommendations = false;
   bool isLoadingMajorBased = false;
   String? majorBasedTitle; // Título dinámico para la sección
+
+  // --- Nearby products state ---
+  List<Post> nearbyProducts = [];
+  bool isLoadingNearbyProducts = false;
 
   Future<void> loadProducts() async {
     try {
@@ -84,7 +93,7 @@ class HomeViewModel extends ChangeNotifier {
     }
   }
 
-  // Cargar recomendaciones basadas en product_search_events  // <-- ADD THIS
+  // Cargar recomendaciones basadas en product_search_events
   Future<void> loadRecommendations({int limit = 5, int windowDays = 30}) async {
     isLoadingRecommendations = true;
     notifyListeners();
@@ -95,6 +104,49 @@ class HomeViewModel extends ChangeNotifier {
       );
     } finally {
       isLoadingRecommendations = false;
+      notifyListeners();
+    }
+  }
+
+  // Cargar productos cercanos geográficamente
+  Future<void> loadNearbyProducts({int limit = 10}) async {
+    isLoadingNearbyProducts = true;
+    notifyListeners();
+
+    try {
+      // 1. Obtener UID del usuario (Repository)
+      final uid = _postRepository.getCurrentUserId();
+      if (uid == null) {
+        nearbyProducts = [];
+        return;
+      }
+
+      // 2. Obtener ubicación actual (Service)
+      final position = await _nearbyService.getCurrentLocation();
+      if (position == null) {
+        nearbyProducts = [];
+        return;
+      }
+
+      // 3. Obtener todos los posts (Repository)
+      final allPosts = await _postRepository.getNewPosts();
+
+      // 4. Filtrar y ordenar por distancia (Service - lógica de negocio)
+      nearbyProducts = await _nearbyService.filterNearbyProducts(
+        allPosts: allPosts,
+        userLatitude: position.latitude,
+        userLongitude: position.longitude,
+        currentUserId: uid,
+        maxDistanceMeters: 5000.0, // Default 5km radius
+        limit: limit,
+      );
+
+      debugPrint('[HomeViewModel] Loaded ${nearbyProducts.length} nearby products');
+    } catch (e) {
+      debugPrint('[HomeViewModel] Error loading nearby products: $e');
+      nearbyProducts = [];
+    } finally {
+      isLoadingNearbyProducts = false;
       notifyListeners();
     }
   }

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../view_models/signup_view_model.dart';
 import '../utils/majors.dart';
+import '../utils/validators.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -13,6 +14,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   late SignupViewModel viewModel;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -27,6 +29,11 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _signup() async {
+    // Validar formulario
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     final scaffold = ScaffoldMessenger.of(context);
 
     try {
@@ -64,7 +71,9 @@ class _SignupScreenState extends State<SignupScreen> {
           body: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
-              child: Column(
+              child: Form(
+                key: _formKey,
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -114,10 +123,11 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  TextField(
+                  TextFormField(
                     onChanged: viewModel.setName,
                     keyboardType: TextInputType.name,
                     autofillHints: const [AutofillHints.name],
+                    validator: Validators.validateName,
                     decoration: const InputDecoration(
                       labelText: 'Name',
                       border: OutlineInputBorder(),
@@ -125,10 +135,11 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  TextField(
+                  TextFormField(
                     onChanged: viewModel.setEmail,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
+                    validator: Validators.validateEmail,
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
@@ -153,21 +164,28 @@ class _SignupScreenState extends State<SignupScreen> {
                     isExpanded: true,
                   ),
                   const SizedBox(height: 20),
-                  TextField(
+                  TextFormField(
                     onChanged: viewModel.setPassword,
                     obscureText: true,
                     autofillHints: const [AutofillHints.newPassword],
+                    validator: Validators.validatePasswordSignUp,
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.lock),
+                      helperText: 'Mínimo 6 caracteres, letras y números',
+                      helperMaxLines: 2,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  TextField(
+                  TextFormField(
                     onChanged: viewModel.setConfirmPassword,
                     obscureText: true,
                     autofillHints: const [AutofillHints.newPassword],
+                    validator: (value) => Validators.validatePasswordConfirmation(
+                      value,
+                      viewModel.password,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Confirm Password',
                       border: OutlineInputBorder(),
@@ -234,7 +252,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ],
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

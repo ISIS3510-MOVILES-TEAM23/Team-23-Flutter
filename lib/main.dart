@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 import 'services/firestore_service.dart';
+import 'view_models/notification_view_model.dart';
+import 'widgets/notification_banner.dart';
 import 'theme/app_colors.dart';
 
 // Tiempo de inicio para medir duración del lanzamiento
@@ -30,8 +32,11 @@ void main() async {
     );
   }
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => NotificationViewModel()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -64,7 +69,18 @@ class _MyAppState extends State<MyApp> {
     // Registrar el tiempo de inicio después de que el primer frame se renderice
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _logAppStartTime();
+      _checkNotifications();
     });
+  }
+
+  Future<void> _checkNotifications() async {
+    try {
+      final viewModel =
+          Provider.of<NotificationViewModel>(context, listen: false);
+      await viewModel.loadNotifications();
+    } catch (e) {
+      debugPrint('❌ Error checking notifications: $e');
+    }
   }
 
   Future<void> _logAppStartTime() async {
@@ -87,8 +103,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
+    return Consumer2<ThemeProvider, NotificationViewModel>(
+      builder: (context, themeProvider, notificationViewModel, child) {
         return MaterialApp.router(
           title: 'Campus Marketplace',
           theme: AppTheme.lightTheme,
@@ -96,6 +112,12 @@ class _MyAppState extends State<MyApp> {
           themeMode: themeProvider.themeMode,
           routerConfig: router,
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            return NotificationBannerContainer(
+              viewModel: notificationViewModel,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
         );
       },
     );

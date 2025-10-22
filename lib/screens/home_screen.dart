@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     viewModel = HomeViewModel();
     viewModel.loadProducts();
+    viewModel.loadNearbyProducts(limit: 10); // Load nearby products
 
     // 👇 NUEVO: inic. de recomendaciones (con logs internos activados)
     _recsFuture = RecommendationService()
@@ -61,10 +62,11 @@ class _HomeScreenState extends State<HomeScreen> {
           body: viewModel.isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                  // Refresca productos, major-based y recomendaciones
+                  // Refresca productos, major-based, nearby y recomendaciones
                   onRefresh: () async {
                     await viewModel.loadProducts();
                     await viewModel.loadMajorBasedProducts();
+                    await viewModel.loadNearbyProducts(limit: 10); // Refresh nearby products
                     setState(() {
                       _recsFuture = RecommendationService()
                           .fetchRecommendations(
@@ -197,6 +199,66 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
+
+                  // 🔻 NUEVO: Created near you
+                  if (viewModel.nearbyProducts.isNotEmpty) ...[
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              color: Colors.green.shade600,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Created near you',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 240,
+                        child: viewModel.isLoadingNearbyProducts
+                            ? const Center(child: CircularProgressIndicator())
+                            : ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                itemCount: viewModel.nearbyProducts.length,
+                                itemBuilder: (context, index) {
+                                  final product = viewModel.nearbyProducts[index];
+                                  return Container(
+                                    width: 180,
+                                    margin: const EdgeInsets.only(right: 16),
+                                    child: ProductCard(
+                                      product: product,
+                                      onTap: () {
+                                        viewModel.logProductClick(
+                                          productId: product.id,
+                                          categoryId: product.categoryId,
+                                          source: 'nearby_carousel',
+                                          ownerId: product.userId,
+                                        );
+                                        context.go('/home/product/${product.id}');
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
+                  // 🔺 FIN Created near you
 
                   // 🔻 NUEVO: Recommended for you (usa _recsFuture)
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
