@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../models/models.dart';
+
 import '../data/repositories/chat_repository.dart';
+import '../models/models.dart';
 
 class ChatViewModel extends ChangeNotifier {
   final ChatRepository _chatRepository;
@@ -19,6 +21,7 @@ class ChatViewModel extends ChangeNotifier {
   bool isLoading = true;
   bool isBuyer = true;
   String? chatId;
+  bool hasRated = false;
 
   Future<void> initializeChat(
     String initialChatId,
@@ -90,6 +93,21 @@ class ChatViewModel extends ChangeNotifier {
       final hour = dateTime.hour.toString().padLeft(2, '0');
       final minute = dateTime.minute.toString().padLeft(2, '0');
       return '$hour:$minute';
+    }
+  }
+
+  Future<void> rateSeller(double rating) async {
+    if (otherUser == null || !isBuyer || hasRated) return;
+
+    try {
+      await _chatRepository.submitSellerRating(
+        sellerId: otherUser!.id,
+        rating: rating,
+      );
+      hasRated = true;
+      notifyListeners();
+    } catch (e) {
+      rethrow;
     }
   }
 

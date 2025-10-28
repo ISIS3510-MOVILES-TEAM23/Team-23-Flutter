@@ -1,11 +1,15 @@
 import '../../models/models.dart';
 import '../../services/chat_api.dart';
 import '../../services/chat_service.dart';
+import '../repositories/user_repository.dart';
 
 class ChatRepository {
   final ChatApi _chatApi;
+  final UserRepository _userRepository;
 
-  ChatRepository({ChatApi? chatApi}) : _chatApi = chatApi ?? ChatApi();
+  ChatRepository({ChatApi? chatApi, UserRepository? userRepository})
+      : _chatApi = chatApi ?? ChatApi(),
+        _userRepository = userRepository ?? UserRepository();
 
   // Get or create product chat
   Future<String> getOrCreateProductChat(
@@ -55,5 +59,15 @@ class ChatRepository {
       productId: productId,
     );
   }
-}
 
+  // Submit seller rating
+  Future<void> submitSellerRating({
+    required String sellerId,
+    required double rating,
+  }) async {
+    await _userRepository.addUserRating(
+      userId: sellerId,
+      rating: rating,
+    );
+  }
+}

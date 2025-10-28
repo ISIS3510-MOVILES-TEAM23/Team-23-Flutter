@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+
 import '../../models/models.dart';
 import '../../services/firestore_service.dart';
 
@@ -54,6 +55,17 @@ class UserRepository {
   // Get user favorites
   Future<List<Post>> getUserFavorites(String userId) async {
     return await FirestoreService.getUserFavorites(userId);
+  }
+
+  // Add rating to user
+  Future<void> addUserRating({
+    required String userId,
+    required double rating,
+  }) async {
+    await FirestoreService.addUserRating(
+      userId: userId,
+      rating: rating,
+    );
   }
 }
 
