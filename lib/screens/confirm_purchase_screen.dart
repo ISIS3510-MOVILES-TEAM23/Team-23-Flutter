@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../services/ble_service.dart';
 import '../services/firestore_service.dart';
+import '../services/sale_polling_service.dart';
 import '../theme/app_colors.dart';
 
 class ConfirmPurchaseScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class ConfirmPurchaseScreen extends StatefulWidget {
 
 class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   final BleService _bleService = BleService();
+  final SalePollingService _pollingService = SalePollingService();
   String _role = 'Buyer'; // 'Buyer' or 'Seller'
   String? _postId;
   String? _buyerId;
@@ -50,12 +52,63 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
           _buyerId = extra['buyerId'];
           _saleId = extra['saleId'];
         });
+        
+        // Start polling if this is the seller
+        if (_role == 'Seller' && _saleId != null && _saleId!.isNotEmpty) {
+          _startSellerPolling();
+        }
       } else {
         setState(() {
           _role = 'Buyer';
         });
       }
     });
+  }
+
+  void _startSellerPolling() {
+    if (_saleId == null) return;
+    
+    debugPrint('[ConfirmPurchaseScreen] Starting polling for sale: $_saleId');
+    setState(() {
+      _statusText = 'Waiting for buyer to complete purchase...';
+    });
+    
+    _pollingService.startPolling(
+      saleId: _saleId!,
+      onStatusChanged: (status) {
+        if (!mounted) return;
+        
+        debugPrint('[ConfirmPurchaseScreen] Sale status changed to: $status');
+        
+        if (status == 'completed') {
+          setState(() {
+            _purchaseCompleted = true;
+            _statusText = 'Purchase completed successfully!';
+          });
+          
+          // Stop advertising if still running
+          if (_isAdvertising) {
+            _stopAdvertising();
+          }
+          
+          // Navigate back after showing success message
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              context.go('/profile');
+            }
+          });
+        } else if (status == 'canceled') {
+          setState(() {
+            _statusText = 'Sale was canceled';
+          });
+        } else {
+          setState(() {
+            _statusText = 'Sale status: $status';
+          });
+        }
+      },
+      intervalSeconds: 3, // Check every 3 seconds
+    );
   }
 
   Future<void> _getDeviceName() async {
@@ -244,6 +297,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   void dispose() {
     _bleService.stopScanning();
     _bleService.stopAdvertising(null);
+    _pollingService.dispose();
     super.dispose();
   }
 
@@ -298,31 +352,109 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
               ],
               const SizedBox(height: 24),
               if (_role == 'Seller') ...[
-                Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isAdvertising ? null : _startAdvertising,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                if (_purchaseCompleted) ...[
+                  // Show success state for seller
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 60,
+                          ),
                         ),
-                        child: const Text('Start Advertising'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isAdvertising ? _stopAdvertising : null,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Purchase Completed!',
+                          style: textTheme.headlineSmall?.copyWith(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        child: const Text('Stop Advertising'),
-                      ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'The buyer has confirmed the purchase.',
+                          style: textTheme.bodyLarge?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ] else ...[
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isAdvertising ? null : _startAdvertising,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('Start Advertising'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isAdvertising ? _stopAdvertising : null,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text('Stop Advertising'),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (_pollingService.isPolling) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.primaryColor.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primaryColor,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Monitoring sale status...',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.primaryColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ] else ...[
                 Column(
                   children: [
@@ -412,10 +544,12 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                 ),
               ],
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _buildStatusWidget(textTheme),
-              ),
+              if (!_purchaseCompleted || _role == 'Buyer') ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildStatusWidget(textTheme),
+                ),
+              ],
             ],
           ),
         ),

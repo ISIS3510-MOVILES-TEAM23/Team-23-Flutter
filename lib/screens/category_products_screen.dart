@@ -42,7 +42,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   @override
   void initState() {
     super.initState();
-    filtersContext = FiltersContext(categoryId: widget.categoryId);
+    filtersContext = FiltersContext(categoryId: widget.categoryId, status: statusFilter);
     _loadData();
   }
 
@@ -75,7 +75,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
       );
 
       // Update filters context with correct category ID
-      filtersContext = FiltersContext(categoryId: category.id);
+      filtersContext = FiltersContext(categoryId: category.id, status: statusFilter);
       
       // Set the appropriate filter service
       _setFilterService();
@@ -476,16 +476,36 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                 : 'https://picsum.photos/seed/${product.id}/300/300';
 
                             return InkWell(
-                              onTap: () {
+                              onTap: () async {
                                 print(
                                     'Navigating to product: ${product.id} from category: ${widget.categoryId}');
+                                
+                                // Registrar en product_search_events (analytics)
                                 FirestoreService.logProductSearchEvent(
                                   source: 'category_chip',
                                   selectedCategory: category.name,
                                   suggestedCategories: [category.name],
                                 );
-                                context.go(
-                                    '/categories/${widget.categoryId}/product/${product.id}');
+                                
+                                // Registrar en product_click_events (recomendaciones)
+                                // SOLO si NO es mi propio producto
+                                try {
+                                  final currentUser = await FirestoreService.getCurrentUser();
+                                  if (currentUser != null && product.userId != currentUser.id) {
+                                    await FirestoreService.logProductClickEvent(
+                                      postId: product.id,
+                                      category: category.name,
+                                      source: 'category_view',
+                                    );
+                                  }
+                                } catch (e) {
+                                  print('Error logging product click: $e');
+                                }
+                                
+                                if (mounted) {
+                                  context.go(
+                                      '/categories/${widget.categoryId}/product/${product.id}');
+                                }
                               },
                               child: Container(
                                 decoration: BoxDecoration(

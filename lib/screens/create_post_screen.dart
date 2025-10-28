@@ -101,6 +101,31 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
+  Future<void> _analyzeWithAI() async {
+    try {
+      await viewModel.analyzeWithAI();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✨ Campos autocompletados con IA'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al analizar: $e'),
+            backgroundColor: AppColors.error,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -216,6 +241,55 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             ),
                           );
                         },
+                      ),
+                    ),
+
+                  if (viewModel.imagePaths.isNotEmpty) const SizedBox(height: 20),
+
+                  // AI Analysis Button
+                  if (viewModel.imagePaths.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: viewModel.isAnalyzing ? null : _analyzeWithAI,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            side: BorderSide(
+                              color: AppColors.primaryColor.withOpacity(0.5),
+                              width: 1.5,
+                            ),
+                          ),
+                          icon: viewModel.isAnalyzing
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        AppColors.primaryColor),
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.auto_awesome,
+                                  size: 20,
+                                  color: AppColors.primaryColor,
+                                ),
+                          label: Text(
+                            viewModel.isAnalyzing
+                                ? 'Analizando imagen...'
+                                : '✨ Autocompletar con IA',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryColor,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
 

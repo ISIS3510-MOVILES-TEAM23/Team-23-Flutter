@@ -1,8 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../../models/models.dart';
 import '../../services/firestore_service.dart';
 
 class PostRepository {
   PostRepository();
+
+  // Get current user ID
+  String? getCurrentUserId() {
+    return auth.FirebaseAuth.instance.currentUser?.uid;
+  }
 
   // Get highlighted posts
   Future<List<Post>> getHighlightedPosts() async {
@@ -59,6 +65,24 @@ class PostRepository {
       selectedCategory: selectedCategory,
       suggestedCategories: suggestedCategories,
     );
+  }
+
+  // Log product click event
+  Future<void> logProductClickEvent({
+    required String postId,
+    String? category,
+    String? source,
+  }) async {
+    await FirestoreService.logProductClickEvent(
+      postId: postId,
+      category: category,
+      source: source,
+    );
+  }
+
+  // Get current user
+  Future<User?> getCurrentUser() async {
+    return await FirestoreService.getCurrentUser();
   }
 
   // Get user posts with chats

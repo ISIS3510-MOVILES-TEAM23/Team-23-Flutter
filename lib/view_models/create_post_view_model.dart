@@ -6,22 +6,31 @@ import '../data/repositories/category_repository.dart';
 import '../data/repositories/post_repository.dart';
 import '../data/repositories/storage_repository.dart';
 import '../data/repositories/user_repository.dart';
+import '../services/openrouter_service.dart';
+import '../services/notification_service.dart';
+import '../services/nearby_products_service.dart';
 
 class CreatePostViewModel extends ChangeNotifier {
   final CategoryRepository _categoryRepository;
   final PostRepository _postRepository;
   final StorageRepository _storageRepository;
   final UserRepository _userRepository;
+  final OpenRouterService _openRouterService;
+  final NearbyProductsService _nearbyService;
 
   CreatePostViewModel({
     CategoryRepository? categoryRepository,
     PostRepository? postRepository,
     StorageRepository? storageRepository,
     UserRepository? userRepository,
+    OpenRouterService? openRouterService,
+    NearbyProductsService? nearbyProductsService,
   })  : _categoryRepository = categoryRepository ?? CategoryRepository(),
         _postRepository = postRepository ?? PostRepository(),
         _storageRepository = storageRepository ?? StorageRepository(),
-        _userRepository = userRepository ?? UserRepository();
+        _userRepository = userRepository ?? UserRepository(),
+        _openRouterService = openRouterService ?? OpenRouterService(),
+        _nearbyService = nearbyProductsService ?? NearbyProductsService();
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -32,6 +41,7 @@ class CreatePostViewModel extends ChangeNotifier {
   List<String> imagePaths = [];
   List<Category> categories = [];
   bool isLoading = false;
+  bool isAnalyzing = false;
   String? _postId;
 
   String ensurePostId() {
@@ -132,6 +142,54 @@ class CreatePostViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Analiza la imagen con IA y autocompleta los campos del formulario
+  Future<void> analyzeWithAI({String? model}) async {
+    if (imagePaths.isEmpty) {
+      throw Exception('Necesitas subir al menos una imagen primero');
+    }
+
+    if (categories.isEmpty) {
+      throw Exception('No hay categorías disponibles');
+    }
+
+    try {
+      isAnalyzing = true;
+      notifyListeners();
+
+      final categoryNames = categories.map((c) => c.name).toList();
+
+      final suggestions = await _openRouterService.analyzeProductImage(
+        imageUrl: imagePaths.first,
+        availableCategories: categoryNames,
+        model: model,
+      );
+
+      // Autocompletar los campos
+      titleController.text = suggestions.title;
+      descriptionController.text = suggestions.description;
+      priceController.text = suggestions.price.toStringAsFixed(2);
+
+      // Seleccionar categoría por nombre
+      final matchedCategory = categories.firstWhere(
+        (c) => c.name.toLowerCase() == suggestions.category.toLowerCase(),
+        orElse: () => categories.first,
+      );
+      
+      selectedCategory = matchedCategory.id;
+      selectedCategoryName = matchedCategory.name;
+
+      isAnalyzing = false;
+      notifyListeners();
+
+      debugPrint('✅ [CreatePostVM] Análisis completado: $suggestions');
+    } catch (e) {
+      isAnalyzing = false;
+      notifyListeners();
+      debugPrint('❌ [CreatePostVM] Error en análisis: $e');
+      rethrow;
+    }
+  }
+
   Future<bool> submitPost() async {
     if (imagePaths.isEmpty) {
       throw Exception('Please add at least one image');
@@ -152,6 +210,15 @@ class CreatePostViewModel extends ChangeNotifier {
         throw Exception('Category not selected');
       }
 
+      // Obtener ubicación actual (opcional) - delegado al Service
+      double? latitude;
+      double? longitude;
+      final position = await _nearbyService.getCurrentLocationWithPermissions();
+      if (position != null) {
+        latitude = position.latitude;
+        longitude = position.longitude;
+      }
+
       final product = Post(
         id: postId,
         title: titleController.text.trim(),
@@ -162,6 +229,8 @@ class CreatePostViewModel extends ChangeNotifier {
         categoryId: 'categories/$selectedCategory',
         images: imagePaths,
         createdAt: DateTime.now(),
+        latitude: latitude,
+        longitude: longitude,
       );
 
       final data = product.toJson();
@@ -172,6 +241,20 @@ class CreatePostViewModel extends ChangeNotifier {
       data['category_name'] = selectedCategoryName ?? '';
 
       final success = await _postRepository.createPost(data, forceId: postId);
+
+      // 🔔 Enviar notificaciones a usuarios interesados (en background)
+      if (success) {
+        NotificationService.notifyInterestedUsers(
+          postId: postId,
+          postTitle: titleController.text.trim(),
+          categoryName: selectedCategoryName ?? '',
+          price: priceInCents,
+          ownerId: user.id,
+        ).catchError((e) {
+          debugPrint('❌ Error sending notifications: $e');
+          // No lanzar error, las notificaciones son "best effort"
+        });
+      }
 
       isLoading = false;
       notifyListeners();

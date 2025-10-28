@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Post {
@@ -10,6 +11,10 @@ class Post {
   final String categoryId; // reference path: categories/<id>
   final List<String> images;
   final DateTime createdAt;
+  
+  // Optional location fields for nearby products feature
+  final double? latitude;
+  final double? longitude;
 
   const Post({
     required this.id,
@@ -21,6 +26,8 @@ class Post {
     required this.categoryId,
     required this.images,
     required this.createdAt,
+    this.latitude,
+    this.longitude,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -84,6 +91,8 @@ class Post {
       categoryId: resolvedCategoryId,
       images: images,
       createdAt: createdAt,
+      latitude: json['latitude'] as double?,
+      longitude: json['longitude'] as double?,
     );
   }
 
@@ -98,7 +107,35 @@ class Post {
       'category_id': categoryId,
       'images': images,
       'created_at': createdAt.toIso8601String(),
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
     };
+  }
+
+  /// Calcula la distancia en metros desde este post hasta una ubicación dada
+  /// Usa la fórmula de Haversine para calcular distancia entre dos puntos en la Tierra
+  double? distanceFromMeters(double userLat, double userLng) {
+    if (latitude == null || longitude == null) return null;
+    
+    const earthRadiusKm = 6371.0;
+    
+    final dLat = _degreesToRadians(userLat - latitude!);
+    final dLng = _degreesToRadians(userLng - longitude!);
+    
+    final lat1Rad = _degreesToRadians(latitude!);
+    final lat2Rad = _degreesToRadians(userLat);
+    
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1Rad) * cos(lat2Rad) *
+        sin(dLng / 2) * sin(dLng / 2);
+    
+    final c = 2 * asin(sqrt(a));
+    
+    return earthRadiusKm * c * 1000; // Convertir a metros
+  }
+  
+  double _degreesToRadians(double degrees) {
+    return degrees * pi / 180.0;
   }
 }
 
