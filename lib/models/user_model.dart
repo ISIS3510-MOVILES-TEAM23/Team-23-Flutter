@@ -6,6 +6,8 @@ class User {
   final String role; // 'student' | 'professor' | 'staff'
   final String? major; // carrera del usuario
   final DateTime createdAt;
+  final int? numberOfReviews; // number of reviews received
+  final double? score; // average rating score
 
   const User({
     required this.id,
@@ -15,6 +17,8 @@ class User {
     required this.role,
     this.major,
     required this.createdAt,
+    this.numberOfReviews,
+    this.score,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -25,7 +29,9 @@ class User {
       email: json['email'],
       role: json['role'],
       major: json['major'],
-      createdAt: DateTime.parse(json['created_at'])
+      createdAt: DateTime.parse(json['created_at']),
+      numberOfReviews: json['number_of_reviews'] as int?,
+      score: (json['score'] as num?)?.toDouble(),
     );
   }
 
@@ -38,7 +44,12 @@ class User {
       'role': role,
       'major': major,
       'created_at': createdAt.toIso8601String(),
+      'number_of_reviews': numberOfReviews,
+      'score': score,
     };
   }
+
+  // Helper method to check if user has rating data
+  bool get hasRating => numberOfReviews != null && score != null && numberOfReviews! > 0;
 }
 

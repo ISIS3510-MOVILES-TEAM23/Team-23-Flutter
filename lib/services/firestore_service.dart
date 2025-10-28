@@ -527,6 +527,49 @@ class FirestoreService {
     return User.fromJson(data);
   }
 
+  // Add or update user rating
+  static Future<void> addUserRating({
+    required String userId,
+    required double rating,
+  }) async {
+    print('📊 Adding rating: $rating to user: $userId');
+    final userDoc = _db.collection('users').doc(userId);
+    
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(userDoc);
+        
+        if (!snapshot.exists) {
+          print('❌ User does not exist: $userId');
+          throw Exception('User does not exist');
+        }
+        
+        final data = snapshot.data()!;
+        final currentReviews = (data['number_of_reviews'] as int?) ?? 0;
+        final currentScore = (data['score'] as num?)?.toDouble() ?? 0.0;
+        
+        print('📊 Current reviews: $currentReviews, Current score: $currentScore');
+        
+        // Calculate new average
+        final totalScore = (currentScore * currentReviews) + rating;
+        final newReviews = currentReviews + 1;
+        final newScore = totalScore / newReviews;
+        
+        print('📊 New reviews: $newReviews, New score: $newScore');
+        
+        transaction.update(userDoc, {
+          'number_of_reviews': newReviews,
+          'score': newScore,
+        });
+        
+        print('✅ Rating transaction completed successfully');
+      });
+    } catch (e) {
+      print('❌ Error adding user rating: $e');
+      rethrow;
+    }
+  }
+
   static Future<List<Post>> getUserPosts(String userId) async {
     final snapshot = await _db
         .collection('posts')

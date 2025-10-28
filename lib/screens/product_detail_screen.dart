@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart' as auth;
+
 import '../theme/app_colors.dart';
 import '../view_models/product_detail_view_model.dart';
+import '../widgets/rating_widget.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -257,14 +259,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          seller?.name ?? product.userId,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              seller?.name ?? product.userId,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (seller?.hasRating ?? false) ...[
+                              const SizedBox(height: 4),
+                              RatingWidget(
+                                rating: seller!.score!,
+                                totalRatings: seller.numberOfReviews!,
+                                size: 14,
+                                showText: true,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],

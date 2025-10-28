@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/chat_api.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/rating_widget.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -36,8 +37,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = true;
   bool _isBuyer = true;
   String? _chatId;
-  final ChatApi _chat = ChatApi(); 
-  
+  final ChatApi _chat = ChatApi();
+  bool _hasRated = false;
 
   @override
   void initState() {
@@ -121,6 +122,95 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _showRatingDialog() {
+    double selectedRating = 0;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Rate Seller'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'How was your experience with ${_otherUser?.name ?? "this seller"}?',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              InteractiveRatingWidget(
+                initialRating: selectedRating,
+                onRatingChanged: (rating) {
+                  setDialogState(() {
+                    selectedRating = rating;
+                  });
+                },
+                size: 40,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: selectedRating > 0 ? () async {
+                Navigator.of(context).pop();
+                await _submitRating(selectedRating);
+              } : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+              ),
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitRating(double rating) async {
+    if (_otherUser == null) {
+      print('❌ Cannot submit rating: _otherUser is null');
+      return;
+    }
+    
+    print('📝 Submitting rating: $rating for user: ${_otherUser!.id} (${_otherUser!.name})');
+    
+    try {
+      await FirestoreService.addUserRating(
+        userId: _otherUser!.id,
+        rating: rating,
+      );
+      
+      print('✅ Rating submitted successfully');
+      
+      setState(() {
+        _hasRated = true;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rating submitted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error submitting rating in chat screen: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting rating: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -150,6 +240,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          // Rating button for buyers
+          if (_isBuyer && !_hasRated)
+            IconButton(
+              icon: const Icon(Icons.star_border),
+              onPressed: _showRatingDialog,
+              tooltip: 'Rate seller',
+            ),
           // Mostrar miniatura del producto
           if (_product != null)
             Padding(
