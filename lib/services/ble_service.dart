@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
@@ -17,6 +18,13 @@ class BleService {
 
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
   Timer? _advertisingTimer;
+  
+  // Isolate management for data processing (if needed in future)
+  Isolate? _dataProcessingIsolate;
+  ReceivePort? _dataProcessingReceivePort;
+  
+  bool _isAdvertising = false;
+  bool _isScanning = false;
 
   Future<bool> requestBlePermissions() async {
     final androidVersion = await _getAndroidVersion();
@@ -53,73 +61,122 @@ class BleService {
     return 31;
   }
 
-  // Buyer (Advertising)
+  // Buyer (Advertising) - Runs on main isolate with async operations
   Future<void> startAdvertising(
       String postId, String userId, VoidCallback onStop) async {
+    if (_isAdvertising) {
+      debugPrint('[Buyer] Already advertising. Stop existing advertising first.');
+      return;
+    }
+
     final payload = '$postId|$userId';
-    final data = utf8.encode(payload);
+    debugPrint('[Buyer] Starting advertising with payload: $payload');
 
-    debugPrint(
-        '[Buyer] Starting advertising payload: $payload (bytes: ${data.length})');
+    try {
+      final data = utf8.encode(payload);
+      
+      await _peripheral.start(
+        advertiseData: AdvertiseData(
+          serviceUuid: serviceUuid,
+          manufacturerId: manufacturerId,
+          manufacturerData: data,
+          includeDeviceName: true,
+        ),
+      );
 
-    await _peripheral.start(
-      advertiseData: AdvertiseData(
-        serviceUuid: serviceUuid,
-        manufacturerId: manufacturerId,
-        manufacturerData: data,
-        includeDeviceName: true,
-      ),
-    );
+      _isAdvertising = true;
+      debugPrint('[Buyer] Advertising started successfully');
 
-    _advertisingTimer = Timer(const Duration(seconds: 60), () {
-      debugPrint('[Buyer] Auto-stopping advertising after 60s.');
-      stopAdvertising(onStop);
-    });
+      // Auto-stop after 60 seconds
+      _advertisingTimer = Timer(const Duration(seconds: 60), () {
+        debugPrint('[Buyer] Advertising timeout reached');
+        stopAdvertising(onStop);
+      });
+    } catch (e) {
+      debugPrint('[Buyer] Error starting advertising: $e');
+      _isAdvertising = false;
+    }
   }
 
   Future<void> stopAdvertising(VoidCallback? onStop) async {
+    if (!_isAdvertising) {
+      debugPrint('[Buyer] Not currently advertising');
+      return;
+    }
+
     try {
       await _peripheral.stop();
+      _isAdvertising = false;
       debugPrint('[Buyer] Advertising stopped.');
     } catch (e) {
       debugPrint('[Buyer] Error stopping advertising: $e');
     }
+    
     _advertisingTimer?.cancel();
     _advertisingTimer = null;
     onStop?.call();
   }
 
-  // Seller (Scanning)
+  // Seller (Scanning) - Runs on main isolate with stream subscription
   void startScanning(
       Function(String id, String name, Uint8List data) onDeviceDiscovered) {
-    debugPrint('[Seller] Starting scan.');
+    if (_isScanning) {
+      debugPrint('[Seller] Already scanning. Stop existing scan first.');
+      return;
+    }
 
-    _scanSubscription = _reactiveBle.scanForDevices(
-      withServices: [],
-      scanMode: ScanMode.lowLatency,
-    ).listen((device) {
-      final manufacturerData = device.manufacturerData;
-      if (manufacturerData.isEmpty) return;
-      if (!device.serviceUuids.contains(Uuid.parse(serviceUuid))) return;
-      try {
-        String device_name = device.name;
-        if (device_name.isEmpty) {
-          device_name = 'Unknown Device';
-        }
-        onDeviceDiscovered(
-            device.id, device_name, manufacturerData);
-      } catch (e) {
-        debugPrint('[Seller] Error: $e');
+    debugPrint('[Seller] Starting scan.');
+    
+    try {
+      _scanSubscription = _reactiveBle.scanForDevices(
+        withServices: [],
+        scanMode: ScanMode.lowLatency,
+      ).listen((device) {
+        _processScannedDevice(device, onDeviceDiscovered);
+      }, onError: (error) {
+        debugPrint('[Seller] Scan error: $error');
+      });
+      
+      _isScanning = true;
+      debugPrint('[Seller] Scan started successfully');
+    } catch (e) {
+      debugPrint('[Seller] Error starting scan: $e');
+    }
+  }
+
+  // Process scanned devices - can be offloaded to compute if needed
+  void _processScannedDevice(
+      DiscoveredDevice device,
+      Function(String id, String name, Uint8List data) onDeviceDiscovered) {
+    final manufacturerData = device.manufacturerData;
+    if (manufacturerData.isEmpty) return;
+    
+    // Check if device advertises our service UUID
+    if (!device.serviceUuids.contains(Uuid.parse(serviceUuid))) return;
+    
+    try {
+      String deviceName = device.name;
+      if (deviceName.isEmpty) {
+        deviceName = 'Unknown Device';
       }
-    }, onError: (error) {
-      debugPrint('[Seller] Scan error: $error');
-      stopScanning();
-    });
+      
+      // Use compute for heavy data processing if needed
+      onDeviceDiscovered(device.id, deviceName, manufacturerData);
+    } catch (e) {
+      debugPrint('[Seller] Error processing device: $e');
+    }
   }
 
   void stopScanning() {
+    if (!_isScanning) {
+      debugPrint('[Seller] Not currently scanning');
+      return;
+    }
+
     _scanSubscription?.cancel();
     _scanSubscription = null;
+    
+    _isScanning = false;
     debugPrint('[Seller] Scan stopped.');
   }
 
@@ -134,5 +191,14 @@ class BleService {
       debugPrint('[Seller] Error decoding manufacturer data: $e');
     }
     return null;
+  }
+  
+  // Cleanup method to dispose of all resources
+  Future<void> dispose() async {
+    await stopAdvertising(null);
+    stopScanning();
+    _dataProcessingReceivePort?.close();
+    _dataProcessingIsolate?.kill(priority: Isolate.immediate);
+    debugPrint('[BleService] Disposed all resources');
   }
 }
