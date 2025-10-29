@@ -84,8 +84,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: const Text('Marketplace'),
                     actions: [
                       IconButton(
-                        onPressed: () => context.go('/home/notifications'),
-                        icon: const Icon(Icons.notifications_outlined),
+                        onPressed: () => context.go('/home/wishlist'),
+                        icon: const Icon(Icons.favorite_border),
                       ),
                     ],
                     backgroundColor:
