@@ -15,6 +15,7 @@ import 'screens/profile_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/verification_screen.dart';
+import 'screens/wish_list_screen.dart';
 import 'widgets/main_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -77,6 +78,10 @@ final router = GoRouter(
                 GoRoute(
                   path: 'notifications',
                   builder: (context, state) => const NotificationsScreen(),
+                ),
+                GoRoute(
+                  path: 'wishlist',
+                  builder: (context, state) => const WishListScreen(),
                 ),
               ],
             ),

@@ -3,24 +3,29 @@ import '../models/models.dart';
 import '../data/repositories/post_repository.dart';
 import '../data/repositories/user_repository.dart';
 import '../data/repositories/chat_repository.dart';
+import '../data/repositories/wish_list_repository.dart';
 import '../services/firestore_service.dart';
 
 class ProductDetailViewModel extends ChangeNotifier {
   final PostRepository _postRepository;
   final UserRepository _userRepository;
   final ChatRepository _chatRepository;
+  final WishListRepository _wishListRepository;
 
   ProductDetailViewModel({
     PostRepository? postRepository,
     UserRepository? userRepository,
     ChatRepository? chatRepository,
+    WishListRepository? wishListRepository,
   })  : _postRepository = postRepository ?? PostRepository(),
         _userRepository = userRepository ?? UserRepository(),
-        _chatRepository = chatRepository ?? ChatRepository();
+        _chatRepository = chatRepository ?? ChatRepository(),
+        _wishListRepository = wishListRepository ?? WishListRepository();
 
   Post? product;
   User? seller;
   bool isLoading = true;
+  bool isInWishList = false;
   int currentImageIndex = 0;
 
   Future<void> loadProduct(String productId) async {
@@ -32,12 +37,15 @@ class ProductDetailViewModel extends ChangeNotifier {
       User? user;
       if (prod != null) {
         user = await _userRepository.getUserById(prod.userId);
-        
+
         // Registrar click del producto SOLO si NO es propio
         final currentUserId = await _userRepository.getCurrentUserId();
         if (currentUserId != null && prod.userId != currentUserId) {
           _logProductClick(prod);
         }
+
+        // Check if product is in wish list
+        isInWishList = await _wishListRepository.isInWishList(productId);
       }
 
       product = prod;
@@ -98,6 +106,37 @@ class ProductDetailViewModel extends ChangeNotifier {
 
   String formatDollars(int cents) {
     return '\$${(cents / 100).toStringAsFixed(2)}';
+  }
+
+  Future<bool> toggleWishList() async {
+    if (product == null) return false;
+
+    try {
+      if (isInWishList) {
+        // Remove from wish list
+        final wishListItem = await _wishListRepository.getWishListItemByProductId(product!.id);
+        if (wishListItem != null) {
+          final success = await _wishListRepository.removeFromWishList(wishListItem.id);
+          if (success) {
+            isInWishList = false;
+            notifyListeners();
+          }
+          return success;
+        }
+        return false;
+      } else {
+        // Add to wish list
+        final success = await _wishListRepository.addToWishList(product!);
+        if (success) {
+          isInWishList = true;
+          notifyListeners();
+        }
+        return success;
+      }
+    } catch (e) {
+      debugPrint('Error toggling wish list: $e');
+      return false;
+    }
   }
 }
 

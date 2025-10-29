@@ -90,10 +90,39 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         final product = viewModel.product!;
         final seller = viewModel.seller;
 
+        final currentUser = auth.FirebaseAuth.instance.currentUser;
+        final isOwnProduct = currentUser?.uid == product.userId;
+
         return Scaffold(
           appBar: AppBar(
             title: const Text('Product Detail'),
             elevation: 0,
+            actions: [
+              if (!isOwnProduct)
+                IconButton(
+                  onPressed: () async {
+                    final success = await viewModel.toggleWishList();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            success
+                                ? (viewModel.isInWishList
+                                    ? 'Added to wish list'
+                                    : 'Removed from wish list')
+                                : 'Failed to update wish list',
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  icon: Icon(
+                    viewModel.isInWishList ? Icons.favorite : Icons.favorite_border,
+                    color: viewModel.isInWishList ? Colors.red : null,
+                  ),
+                ),
+            ],
           ),
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
