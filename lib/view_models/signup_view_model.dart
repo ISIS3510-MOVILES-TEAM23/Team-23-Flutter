@@ -3,10 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/user_repository.dart';
+import '../services/connectivity_service.dart';
 
 class SignupViewModel extends ChangeNotifier {
   final AuthRepository _authRepository;
   final UserRepository _userRepository;
+  final ConnectivityService _connectivity = ConnectivityService();
 
   SignupViewModel({
     AuthRepository? authRepository,
@@ -20,6 +22,8 @@ class SignupViewModel extends ChangeNotifier {
   String confirmPassword = '';
   String? major;
   bool isLoading = false;
+  String? errorMessage;
+  bool isOffline = false;
 
   void setName(String value) {
     name = value;
@@ -54,6 +58,15 @@ class SignupViewModel extends ChangeNotifier {
   }
 
   Future<User?> signup() async {
+    // Scenario 2: Validate internet connection before signup
+    isOffline = !_connectivity.isConnected;
+
+    if (isOffline) {
+      errorMessage = 'Internet connection required to create account. Please connect and try again.';
+      notifyListeners();
+      throw Exception(errorMessage);
+    }
+
     if (name.trim().isEmpty) {
       throw Exception('El nombre es requerido');
     }
@@ -72,6 +85,7 @@ class SignupViewModel extends ChangeNotifier {
 
     try {
       isLoading = true;
+      errorMessage = null;
       notifyListeners();
 
       // 1) Crear usuario en Firebase Auth

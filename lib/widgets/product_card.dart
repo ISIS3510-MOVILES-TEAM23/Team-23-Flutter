@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../theme/app_colors.dart';
+import 'offline_network_image.dart';
 
 class ProductCard extends StatelessWidget {
   final Post product;
@@ -47,37 +48,13 @@ class ProductCard extends StatelessWidget {
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(12),
                       ),
-                      child: Image.network(
-                        product.images.isNotEmpty
+                      child: OfflineNetworkImage(
+                        imageUrl: product.images.isNotEmpty
                             ? product.images.first
                             : 'https://picsum.photos/seed/${product.id}/400/400',
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey.withOpacity(0.1),
-                            child: Icon(
-                              Icons.image_outlined,
-                              size: 40,
-                              color: AppColors.textSecondary.withOpacity(0.3),
-                            ),
-                          );
-                        },
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            color: Colors.grey.withOpacity(0.1),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
                       ),
                     ),
                   ),

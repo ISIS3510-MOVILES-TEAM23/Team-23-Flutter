@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
 import '../theme/app_colors.dart';
+import '../widgets/offline_network_image.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -12,7 +13,8 @@ class SalesScreen extends StatefulWidget {
   State<SalesScreen> createState() => _SalesScreenState();
 }
 
-class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStateMixin {
+class _SalesScreenState extends State<SalesScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<PostWithChat> allSales = [];
   List<PostWithChat> pendingSales = [];
@@ -30,16 +32,19 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
   Future<void> _loadSalesData() async {
     try {
       user = await FirestoreService.getCurrentUser();
-      final sales = await FirestoreService.getUserPostsWithChats(user?.id ?? '');
-      
+      final sales =
+          await FirestoreService.getUserPostsWithChats(user?.id ?? '');
+
       setState(() {
         allSales = sales;
-        pendingSales = sales.where((s) => 
-          s.sale?.status == 'pending' || 
-          s.sale?.status == 'acknowledged' ||
-          (s.sale == null && s.chatId != null)
-        ).toList();
-        completedSales = sales.where((s) => s.sale?.status == 'completed').toList();
+        pendingSales = sales
+            .where((s) =>
+                s.sale?.status == 'pending' ||
+                s.sale?.status == 'acknowledged' ||
+                (s.sale == null && s.chatId != null))
+            .toList();
+        completedSales =
+            sales.where((s) => s.sale?.status == 'completed').toList();
         isLoading = false;
       });
     } catch (e) {
@@ -79,19 +84,22 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                   decoration: BoxDecoration(
                     color: Theme.of(context).cardTheme.color,
                     border: const Border(
-                      bottom: BorderSide(color: AppColors.borderColor, width: 0.5),
+                      bottom:
+                          BorderSide(color: AppColors.borderColor, width: 0.5),
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildStatItem('Total Products', allSales.length.toString()),
-                      _buildStatItem('Completed', completedSales.length.toString()),
+                      _buildStatItem(
+                          'Total Products', allSales.length.toString()),
+                      _buildStatItem(
+                          'Completed', completedSales.length.toString()),
                       _buildStatItem('Pending', pendingSales.length.toString()),
                     ],
                   ),
                 ),
-                
+
                 // TabBar
                 Container(
                   decoration: BoxDecoration(
@@ -109,7 +117,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                     ],
                   ),
                 ),
-                
+
                 // TabBarView
                 Expanded(
                   child: TabBarView(
@@ -189,7 +197,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
     final buyer = saleData.buyer;
     final status = saleData.sale?.status ?? 'pending';
     final showChatButton = status != 'completed' && status != 'canceled';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -216,28 +224,17 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                     // Product Image
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        post.images.isNotEmpty 
-                            ? post.images.first 
+                      child: OfflineNetworkImage(
+                        imageUrl: post.images.isNotEmpty
+                            ? post.images.first
                             : 'https://picsum.photos/seed/${post.id}/400/400',
                         width: 80,
                         height: 80,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: 80,
-                            height: 80,
-                            color: AppColors.borderColor,
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              color: AppColors.textSecondary,
-                            ),
-                          );
-                        },
                       ),
                     ),
                     const SizedBox(width: 12),
-                    
+
                     // Product Details
                     Expanded(
                       child: Column(
@@ -301,9 +298,9 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Buyer Info Row
             if (buyer != null) ...[
               Row(
@@ -337,7 +334,7 @@ class _SalesScreenState extends State<SalesScreen> with SingleTickerProviderStat
               ),
               const SizedBox(height: 12),
             ],
-            
+
             // Action Buttons Row
             Row(
               children: [

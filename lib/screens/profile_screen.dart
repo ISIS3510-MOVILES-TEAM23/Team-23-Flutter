@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
 import '../services/on_campus_service.dart';
+import '../services/cache_service.dart';
+import '../services/connectivity_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/majors.dart';
 import '../widgets/product_card.dart';
@@ -79,17 +81,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     try {
+      debugPrint('[ProfileScreen] 🔄 Loading user data...');
       final user = await FirestoreService.getCurrentUser();
+      debugPrint('[ProfileScreen] 👤 User: ${user?.id} (${user?.name})');
+
       List<Post> products = [];
       if (user != null) {
-        products = await FirestoreService.getUserPosts(user.id);
+        // Try to load from network first if online
+        if (ConnectivityService().isConnected) {
+          try {
+            debugPrint('[ProfileScreen] 📦 Online - Fetching user posts from network...');
+            products = await FirestoreService.getUserPosts(user.id);
+            debugPrint('[ProfileScreen] ✅ Got ${products.length} products from network');
+
+            // Cache the posts
+            await CacheService().cacheUserPosts(
+              user.id,
+              products.map((p) => p.toJson()).toList(),
+            );
+            debugPrint('[ProfileScreen] 💾 Cached ${products.length} user posts');
+          } catch (e) {
+            debugPrint('[ProfileScreen] ❌ Network failed, trying cache: $e');
+            // Fallback to cache
+            final cached = await CacheService().getCachedUserPosts(user.id);
+            if (cached != null) {
+              products = cached.map((json) => Post.fromJson(json)).toList();
+              debugPrint('[ProfileScreen] 📦 Loaded ${products.length} products from cache');
+            }
+          }
+        } else {
+          // Offline - load from cache
+          debugPrint('[ProfileScreen] 📴 Offline - Loading from cache...');
+          final cached = await CacheService().getCachedUserPosts(user.id);
+          if (cached != null) {
+            products = cached.map((json) => Post.fromJson(json)).toList();
+            debugPrint('[ProfileScreen] ✅ Loaded ${products.length} products from cache');
+          } else {
+            debugPrint('[ProfileScreen] ⚠️ No cached user posts (open app online first)');
+          }
+        }
+      } else {
+        debugPrint('[ProfileScreen] ⚠️ No user found');
       }
+
       setState(() {
         currentUser = user;
         myProducts = products;
         isLoading = false;
       });
+      debugPrint('[ProfileScreen] ✓ State updated: ${myProducts.length} products in myProducts');
     } catch (e) {
+      debugPrint('[ProfileScreen] ❌ Error loading user data: $e');
       setState(() {
         isLoading = false;
       });

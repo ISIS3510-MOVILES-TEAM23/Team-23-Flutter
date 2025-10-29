@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
 import '../view_models/product_detail_view_model.dart';
+import '../widgets/offline_network_image.dart';
 import '../widgets/rating_widget.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -118,7 +119,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     }
                   },
                   icon: Icon(
-                    viewModel.isInWishList ? Icons.favorite : Icons.favorite_border,
+                    viewModel.isInWishList
+                        ? Icons.favorite
+                        : Icons.favorite_border,
                     color: viewModel.isInWishList ? Colors.red : null,
                   ),
                 ),
@@ -143,54 +146,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             onPageChanged: viewModel.setCurrentImageIndex,
                             itemBuilder: (context, index) => ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                product.images[index],
+                              child: OfflineNetworkImage(
+                                imageUrl: product.images[index],
                                 width: double.infinity,
                                 height: 260,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.image_outlined,
-                                          size: 60,
-                                          color: AppColors.textSecondary.withOpacity(0.3),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Image not available',
-                                          style: TextStyle(
-                                            color: AppColors.textSecondary.withOpacity(0.6),
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                        value: loadingProgress.expectedTotalBytes != null
-                                            ? loadingProgress.cumulativeBytesLoaded /
-                                                loadingProgress.expectedTotalBytes!
-                                            : null,
-                                      ),
-                                    ),
-                                  );
-                                },
                               ),
                             ),
                           ),
@@ -205,9 +165,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   product.images.length,
                                   (i) => AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
-                                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                                    width: viewModel.currentImageIndex == i ? 10 : 8,
-                                    height: viewModel.currentImageIndex == i ? 10 : 8,
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 4),
+                                    width: viewModel.currentImageIndex == i
+                                        ? 10
+                                        : 8,
+                                    height: viewModel.currentImageIndex == i
+                                        ? 10
+                                        : 8,
                                     decoration: BoxDecoration(
                                       color: viewModel.currentImageIndex == i
                                           ? Colors.white
@@ -318,7 +283,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: product.status == 'active' ? _initiateChat : null,
+                      onPressed:
+                          product.status == 'active' ? _initiateChat : null,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: product.status == 'active'
@@ -326,7 +292,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             : AppColors.textSecondary,
                       ),
                       child: Text(
-                        product.status == 'active' ? 'Chat with seller' : 'Not available',
+                        product.status == 'active'
+                            ? 'Chat with seller'
+                            : 'Not available',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

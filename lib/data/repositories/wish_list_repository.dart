@@ -33,7 +33,12 @@ class WishListRepository {
 
       return items;
     } catch (e) {
-      print('Error getting wish list items: $e');
+      final errorMsg = e.toString();
+      if (errorMsg.contains('UNAVAILABLE')) {
+        print('⚠️ Wish list unavailable (offline)');
+      } else {
+        print('Error getting wish list: $e');
+      }
       return [];
     }
   }
@@ -70,7 +75,12 @@ class WishListRepository {
 
       return true;
     } catch (e) {
-      print('Error adding to wish list: $e');
+      final errorMsg = e.toString();
+      if (errorMsg.contains('UNAVAILABLE')) {
+        print('⚠️ Cannot add to wish list (offline)');
+      } else {
+        print('Error adding to wish list: $e');
+      }
       return false;
     }
   }
@@ -81,7 +91,12 @@ class WishListRepository {
       await _firestore.collection('wish_list').doc(wishListItemId).delete();
       return true;
     } catch (e) {
-      print('Error removing from wish list: $e');
+      final errorMsg = e.toString();
+      if (errorMsg.contains('UNAVAILABLE')) {
+        print('⚠️ Cannot remove from wish list (offline)');
+      } else {
+        print('Error removing from wish list: $e');
+      }
       return false;
     }
   }
@@ -94,7 +109,12 @@ class WishListRepository {
       });
       return true;
     } catch (e) {
-      print('Error updating notes: $e');
+      final errorMsg = e.toString();
+      if (errorMsg.contains('UNAVAILABLE')) {
+        print('⚠️ Cannot update notes (offline)');
+      } else {
+        print('Error updating notes: $e');
+      }
       return false;
     }
   }
@@ -114,7 +134,10 @@ class WishListRepository {
 
       return snapshot.docs.isNotEmpty;
     } catch (e) {
-      print('Error checking wish list: $e');
+      final errorMsg = e.toString();
+      if (!errorMsg.contains('UNAVAILABLE')) {
+        print('Error checking wish list: $e');
+      }
       return false;
     }
   }
@@ -139,7 +162,10 @@ class WishListRepository {
       data['_id'] = doc.id;
       return WishListItem.fromJson(data);
     } catch (e) {
-      print('Error getting wish list item: $e');
+      final errorMsg = e.toString();
+      if (!errorMsg.contains('UNAVAILABLE')) {
+        print('Error getting wish list item: $e');
+      }
       return null;
     }
   }

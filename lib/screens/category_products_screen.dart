@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/filters_service.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/offline_network_image.dart';
 
 const double kNoMaxUsd = 100000000;
 
@@ -42,7 +43,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   @override
   void initState() {
     super.initState();
-    filtersContext = FiltersContext(categoryId: widget.categoryId, status: statusFilter);
+    filtersContext =
+        FiltersContext(categoryId: widget.categoryId, status: statusFilter);
     _loadData();
   }
 
@@ -71,12 +73,14 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
       // Find the actual category document ID
       final category = cats.firstWhere(
         (c) => c.id == widget.categoryId || c.name == widget.categoryId,
-        orElse: () => Category(id: widget.categoryId, name: widget.categoryId, description: ''),
+        orElse: () => Category(
+            id: widget.categoryId, name: widget.categoryId, description: ''),
       );
 
       // Update filters context with correct category ID
-      filtersContext = FiltersContext(categoryId: category.id, status: statusFilter);
-      
+      filtersContext =
+          FiltersContext(categoryId: category.id, status: statusFilter);
+
       // Set the appropriate filter service
       _setFilterService();
 
@@ -87,7 +91,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
       if (priceRange.start > 0 || priceRange.end < 1000) {
         filteredPosts = filteredPosts.where((post) {
           final priceInDollars = post.price / 100.0;
-          return priceInDollars >= priceRange.start && priceInDollars <= priceRange.end;
+          return priceInDollars >= priceRange.start &&
+              priceInDollars <= priceRange.end;
         }).toList();
       }
 
@@ -479,19 +484,21 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                               onTap: () async {
                                 print(
                                     'Navigating to product: ${product.id} from category: ${widget.categoryId}');
-                                
+
                                 // Registrar en product_search_events (analytics)
                                 FirestoreService.logProductSearchEvent(
                                   source: 'category_chip',
                                   selectedCategory: category.name,
                                   suggestedCategories: [category.name],
                                 );
-                                
+
                                 // Registrar en product_click_events (recomendaciones)
                                 // SOLO si NO es mi propio producto
                                 try {
-                                  final currentUser = await FirestoreService.getCurrentUser();
-                                  if (currentUser != null && product.userId != currentUser.id) {
+                                  final currentUser =
+                                      await FirestoreService.getCurrentUser();
+                                  if (currentUser != null &&
+                                      product.userId != currentUser.id) {
                                     await FirestoreService.logProductClickEvent(
                                       postId: product.id,
                                       category: category.name,
@@ -501,7 +508,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                 } catch (e) {
                                   print('Error logging product click: $e');
                                 }
-                                
+
                                 if (mounted) {
                                   context.go(
                                       '/categories/${widget.categoryId}/product/${product.id}');
@@ -525,22 +532,9 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                                         child: Container(
                                           width: double.infinity,
                                           color: Colors.grey.withOpacity(0.1),
-                                          child: Image.network(
-                                            imageUrl,
+                                          child: OfflineNetworkImage(
+                                            imageUrl: imageUrl,
                                             fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                              return Container(
-                                                color: Colors.grey
-                                                    .withOpacity(0.1),
-                                                child: Icon(
-                                                  Icons.image_outlined,
-                                                  size: 40,
-                                                  color: AppColors.textSecondary
-                                                      .withOpacity(0.3),
-                                                ),
-                                              );
-                                            },
                                           ),
                                         ),
                                       ),
