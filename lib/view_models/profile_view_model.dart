@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../data/repositories/user_repository.dart';
+import '../data/repositories/auth_repository.dart';
 
 class ProfileViewModel extends ChangeNotifier {
   final UserRepository _userRepository;
+  final AuthRepository _authRepository;
 
-  ProfileViewModel({UserRepository? userRepository})
-      : _userRepository = userRepository ?? UserRepository();
+  ProfileViewModel({UserRepository? userRepository, AuthRepository? authRepository})
+      : _userRepository = userRepository ?? UserRepository(),
+        _authRepository = authRepository ?? AuthRepository();
 
   User? currentUser;
   List<Post> myProducts = [];
@@ -53,6 +56,10 @@ class ProfileViewModel extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<void> logout() async {
+    await _authRepository.signOut();
   }
 }
 
