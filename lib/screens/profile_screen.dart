@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
+import '../view_models/profile_view_model.dart';
 import '../services/on_campus_service.dart';
 import '../services/cache_service.dart';
 import '../services/connectivity_service.dart';
@@ -23,6 +24,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   User? currentUser;
   List<Post> myProducts = [];
   bool isLoading = true;
+  late ProfileViewModel _profileViewModel;
 
   // Campus status
   late OnCampusService _onCampusService;
@@ -33,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     debugPrint('ProfileScreen initState called');
+    _profileViewModel = ProfileViewModel();
     _onCampusService = OnCampusService(enableLogging: true);
     debugPrint('OnCampusService created');
     _initializeCampusStatus();
@@ -135,6 +138,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _logout() async {
+    try {
+      await _profileViewModel.logout();
+      if (mounted) {
+        context.go('/login');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al cerrar sesión'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
@@ -296,6 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _campusSubscription?.cancel();
     _onCampusService.dispose();
+    _profileViewModel.dispose();
     super.dispose();
   }
 
@@ -520,6 +540,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryColor,
                     foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Logout Button - Full Width
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout, size: 20, color: Colors.red),
+                  label: const Text(
+                    'Cerrar sesión',
+                    style: TextStyle(fontSize: 16, color: Colors.red),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
