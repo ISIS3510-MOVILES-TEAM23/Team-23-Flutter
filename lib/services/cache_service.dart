@@ -494,12 +494,157 @@ class CacheService {
     }
   }
 
+  /// Cache chat messages (Scenario 7)
+  Future<void> cacheChatMessages(
+      String chatId, List<Map<String, dynamic>> messages) async {
+    try {
+      debugPrint(
+          '[Cache] 💾 Saving ${messages.length} messages for chat $chatId...');
+      final cacheData = {
+        'data': messages,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.messagesBoxName,
+        'chat_messages_$chatId',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached ${messages.length} chat messages');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache chat messages: $e');
+    }
+  }
+
+  /// Get cached chat messages (Scenario 7)
+  Future<List<Map<String, dynamic>>?> getCachedChatMessages(
+      String chatId) async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.messagesBoxName,
+        'chat_messages_$chatId',
+      );
+
+      if (cached == null) {
+        debugPrint('[Cache] ⚠️ No cached messages for chat $chatId');
+        return null;
+      }
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      // Use same TTL as messages (30 days)
+      if (DateTime.now().difference(timestamp) > messagesCacheDuration) {
+        debugPrint('[Cache] ⏰ Chat messages cache expired');
+        return null;
+      }
+
+      final messages = (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      debugPrint('[Cache] ✅ Retrieved ${messages.length} cached chat messages');
+      return messages;
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached chat messages: $e');
+      return null;
+    }
+  }
+
+  /// Cache chat info (Scenario 7)
+  Future<void> cacheChatInfo(
+      String chatId, Map<String, dynamic> chatInfo) async {
+    try {
+      final cacheData = {
+        'data': chatInfo,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.messagesBoxName,
+        'chat_info_$chatId',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached chat info for $chatId');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache chat info: $e');
+    }
+  }
+
+  /// Get cached chat info (Scenario 7)
+  Future<Map<String, dynamic>?> getCachedChatInfo(String chatId) async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.messagesBoxName,
+        'chat_info_$chatId',
+      );
+
+      if (cached == null) return null;
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      if (DateTime.now().difference(timestamp) > messagesCacheDuration) {
+        return null;
+      }
+
+      return Map<String, dynamic>.from(cacheData['data'] as Map);
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached chat info: $e');
+      return null;
+    }
+  }
+
+  /// Cache user chats list (Scenario 7)
+  Future<void> cacheUserChats(List<Map<String, dynamic>> chats) async {
+    try {
+      debugPrint('[Cache] 💾 Saving ${chats.length} user chats...');
+      final cacheData = {
+        'data': chats,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.messagesBoxName,
+        'user_chats',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached ${chats.length} user chats');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache user chats: $e');
+    }
+  }
+
+  /// Get cached user chats list (Scenario 7)
+  Future<List<Map<String, dynamic>>?> getCachedUserChats() async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.messagesBoxName,
+        'user_chats',
+      );
+
+      if (cached == null) return null;
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      if (DateTime.now().difference(timestamp) > messagesCacheDuration) {
+        return null;
+      }
+
+      return (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached user chats: $e');
+      return null;
+    }
+  }
+
   /// Clear all caches
   Future<void> clearAllCaches() async {
     try {
       await _storage.clearBox(LocalStorageService.postsBoxName);
       await _storage.clearBox(LocalStorageService.categoriesBoxName);
       await _storage.clearBox(LocalStorageService.userBoxName);
+      await _storage.clearBox(LocalStorageService.messagesBoxName);
       debugPrint('[Cache] ✓ Cleared all caches');
     } catch (e) {
       debugPrint('[Cache] ✗ Failed to clear caches: $e');

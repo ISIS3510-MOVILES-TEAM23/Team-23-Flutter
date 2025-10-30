@@ -543,12 +543,35 @@ class _ChatScreenState extends State<ChatScreen> {
                             ),
                           ),
                         const SizedBox(height: 4),
-                        Text(
-                          _formatTime(message.sentAt),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isMe ? Colors.white70 : Colors.black54,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _formatTime(message.sentAt),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                            // Show clock icon for pending messages
+                            if (isMe && message.isPending) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ],
+                            // Show checkmark for sent messages
+                            if (isMe && !message.isPending) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.check,
+                                size: 12,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),

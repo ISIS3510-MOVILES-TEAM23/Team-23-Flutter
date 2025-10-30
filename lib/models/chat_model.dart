@@ -9,6 +9,7 @@ class ChatMessage {
   final String? image;
   final DateTime sentAt;
   final bool read;
+  final String? status; // 'sent', 'queued', 'failed'
 
   const ChatMessage({
     required this.id,
@@ -17,6 +18,7 @@ class ChatMessage {
     this.image,
     required this.sentAt,
     this.read = false,
+    this.status,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,7 @@ class ChatMessage {
       image: json['image']?.toString(),
       sentAt: sentAt,
       read: json['read'] ?? false,
+      status: json['status']?.toString(),
     );
   }
 
@@ -49,8 +52,12 @@ class ChatMessage {
       'sent_at': FieldValue.serverTimestamp(),
       'read': read,
       'image': image,
+      'status': status,
     };
   }
+
+  /// Check if message is pending send
+  bool get isPending => status == 'queued';
 }
 
 class Chat {

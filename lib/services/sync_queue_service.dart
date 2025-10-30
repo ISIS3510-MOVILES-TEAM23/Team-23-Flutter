@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'local_storage_service.dart';
 import 'connectivity_service.dart';
+import 'chat_service.dart';
 
 /// Service to manage offline operation queue and sync
 /// Implements queue-and-sync pattern for eventual consistency
@@ -155,19 +156,13 @@ class SyncQueueService {
 
   /// Sync a message to Firestore
   Future<void> _syncMessage(Map<String, dynamic> item) async {
-    // This will be implemented by ChatViewModel/Repository
-    // For now, just mark as synced
     debugPrint('[SyncQueue] 📤 Syncing message: ${item['id']}');
 
-    // Simulate network call
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    // In real implementation, this would call:
-    // await FirebaseFirestore.instance
-    //     .collection('chats')
-    //     .doc(item['chatId'])
-    //     .collection('messages')
-    //     .add({...});
+    await ChatService.sendMessage(
+      chatId: item['chatId'] as String,
+      text: item['content'] as String?,
+      imageUrl: null,
+    );
   }
 
   /// Listen for connectivity changes and auto-sync
