@@ -142,21 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    try {
-      await _profileViewModel.logout();
-      if (mounted) {
-        context.go('/login');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error al cerrar sesión'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-    }
-  }
+  // Removed duplicate - using _signOut() instead
 
   Future<void> _updateProfile(
       String? name, String? email, String? password, String? major) async {
@@ -617,32 +603,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 12),
-
-            // Logout Button - Full Width
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, size: 20, color: Colors.red),
-                  label: const Text(
-                    'Cerrar sesión',
-                    style: TextStyle(fontSize: 16, color: Colors.red),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
 
             // My Products Section
             const Padding(
