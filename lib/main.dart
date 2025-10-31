@@ -6,9 +6,10 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 import 'services/firestore_service.dart';
+import 'services/hive_service.dart';
+import 'theme/app_colors.dart';
 import 'view_models/notification_view_model.dart';
 import 'widgets/notification_banner.dart';
-import 'theme/app_colors.dart';
 
 // Tiempo de inicio para medir duración del lanzamiento
 DateTime? _appStartTime;
@@ -24,6 +25,15 @@ void main() async {
   } catch (e) {
     debugPrint('⚠️ No se pudo cargar .env: $e');
     // Continuar sin .env (las features de IA no funcionarán)
+  }
+
+  // Initialize Hive for local database
+  try {
+    await HiveService.initialize();
+    debugPrint('✅ Hive initialized successfully');
+  } catch (e) {
+    debugPrint('❌ Error initializing Hive: $e');
+    // App can continue without Hive, but offline features won't work
   }
 
   if (Firebase.apps.isEmpty) {
