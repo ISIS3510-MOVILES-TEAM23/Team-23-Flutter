@@ -3,17 +3,19 @@ import 'package:flutter/material.dart';
 import '../data/repositories/wish_list_repository.dart';
 import '../services/cache_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/hive_service.dart';
+import '../models/models.dart';
 
 class WishListViewModel extends ChangeNotifier {
   final WishListRepository _repository;
   final CacheService _cache = CacheService();
-  final ConnectivityService _connectivity = ConnectivityService();
+  final ConnectivityService _connectivity;
 
   WishListViewModel({
     WishListRepository? repository,
     ConnectivityService? connectivityService,
   })  : _repository = repository ?? WishListRepository(),
-        _connectivityService = connectivityService ?? ConnectivityService();
+        _connectivity = connectivityService ?? ConnectivityService();
 
   List<WishListItem> _items = [];
   bool _isLoading = true;
@@ -38,7 +40,7 @@ class WishListViewModel extends ChangeNotifier {
       _error = null;
       
       // Check connectivity
-      _isOffline = !(await _connectivityService.checkConnectivity());
+      _isOffline = !(await _connectivity.checkConnectivity());
       debugPrint('🌐 [WishListVM] Offline mode: $_isOffline');
       
       notifyListeners();
@@ -126,7 +128,7 @@ class WishListViewModel extends ChangeNotifier {
       _items.removeWhere((item) => item.id == wishListItemId);
       notifyListeners();
 
-      final success = await _repository.removeFromWishList(wishListItemId, productId);
+      final success = await _repository.removeFromWishList(wishListItemId);
       
       if (success) {
         _items.removeWhere((item) => item.id == wishListItemId);

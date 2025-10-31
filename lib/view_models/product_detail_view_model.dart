@@ -177,7 +177,7 @@ class ProductDetailViewModel extends ChangeNotifier {
         final wishListItem =
             await _wishListRepository.getWishListItemByProductId(product!.id);
         if (wishListItem != null) {
-          final success = await _wishListRepository.removeFromWishList(wishListItem.id, product!.id);
+          final success = await _wishListRepository.removeFromWishList(wishListItem.id);
           if (success) {
             isInWishList = false;
             notifyListeners();

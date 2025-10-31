@@ -14,11 +14,20 @@ class HiveService {
   static Box<Map>? _userCacheBox;
   static Box<Map>? _wishlistCacheBox;
   static Box<Map>? _wishlistMetaBox;
+  
+  static bool _isInitialized = false;
 
   /// Initialize Hive and open boxes
   static Future<void> initialize() async {
+    if (_isInitialized) {
+      debugPrint('🗄️ [HiveService] Already initialized, skipping...');
+      return;
+    }
+    
     try {
       debugPrint('🗄️ [HiveService] Initializing Hive...');
+      
+      // Initialize Hive (only once)
       await Hive.initFlutter();
       
       // Register adapters
@@ -26,12 +35,32 @@ class HiveService {
         Hive.registerAdapter(SyncQueueItemAdapter());
       }
       
-      // Open boxes
-      _syncQueueBox = await Hive.openBox<SyncQueueItem>(_syncQueueBoxName);
-      _userCacheBox = await Hive.openBox<Map>(_userCacheBoxName);
-      _wishlistCacheBox = await Hive.openBox<Map>(_wishlistCacheBoxName);
-      _wishlistMetaBox = await Hive.openBox<Map>(_wishlistMetaBoxName);
+      // Open boxes (check if already open)
+      if (!Hive.isBoxOpen(_syncQueueBoxName)) {
+        _syncQueueBox = await Hive.openBox<SyncQueueItem>(_syncQueueBoxName);
+      } else {
+        _syncQueueBox = Hive.box<SyncQueueItem>(_syncQueueBoxName);
+      }
       
+      if (!Hive.isBoxOpen(_userCacheBoxName)) {
+        _userCacheBox = await Hive.openBox<Map>(_userCacheBoxName);
+      } else {
+        _userCacheBox = Hive.box<Map>(_userCacheBoxName);
+      }
+      
+      if (!Hive.isBoxOpen(_wishlistCacheBoxName)) {
+        _wishlistCacheBox = await Hive.openBox<Map>(_wishlistCacheBoxName);
+      } else {
+        _wishlistCacheBox = Hive.box<Map>(_wishlistCacheBoxName);
+      }
+      
+      if (!Hive.isBoxOpen(_wishlistMetaBoxName)) {
+        _wishlistMetaBox = await Hive.openBox<Map>(_wishlistMetaBoxName);
+      } else {
+        _wishlistMetaBox = Hive.box<Map>(_wishlistMetaBoxName);
+      }
+      
+      _isInitialized = true;
       debugPrint('🗄️ [HiveService] Hive initialized successfully');
       debugPrint('🗄️ [HiveService] Sync queue items: ${_syncQueueBox?.length ?? 0}');
       debugPrint('🗄️ [HiveService] Cached users: ${_userCacheBox?.length ?? 0}');

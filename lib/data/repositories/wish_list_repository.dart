@@ -162,7 +162,7 @@ class WishListRepository {
   }
 
   // Remove item from wish list with offline support
-  Future<bool> removeFromWishList(String wishListItemId, String productId) async {
+  Future<bool> removeFromWishList(String wishListItemId) async {
     final userId = getCurrentUserId();
     if (userId == null) return false;
 
@@ -180,7 +180,6 @@ class WishListRepository {
         // Offline: Queue operation for sync
         await _syncService.queueRemoveOperation(
           wishListItemId: wishListItemId,
-          productId: productId,
         );
         debugPrint('📤 [WishListRepo] Removed from wishlist offline (queued)');
       }
@@ -194,22 +193,6 @@ class WishListRepository {
         print('Error adding to wish list: $e');
       }
       debugPrint('❌ [WishListRepo] Error removing from wishlist: $e');
-      return false;
-    }
-  }
-
-  // Remove item from wish list
-  Future<bool> removeFromWishList(String wishListItemId) async {
-    try {
-      await _firestore.collection('wish_list').doc(wishListItemId).delete();
-      return true;
-    } catch (e) {
-      final errorMsg = e.toString();
-      if (errorMsg.contains('UNAVAILABLE')) {
-        print('⚠️ Cannot remove from wish list (offline)');
-      } else {
-        print('Error removing from wish list: $e');
-      }
       return false;
     }
   }
@@ -250,6 +233,8 @@ class WishListRepository {
       }
       debugPrint('❌ [WishListRepo] Error updating notes: $e');
     }
+    return false;
+  }
 
   // Check if product is in wish list
   Future<bool> isInWishList(String productId) async {

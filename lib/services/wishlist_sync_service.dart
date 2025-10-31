@@ -71,8 +71,7 @@ class WishlistSyncService {
 
   /// Remove wishlist operation to sync queue
   Future<void> queueRemoveOperation({
-    required String wishListItemId,
-    required String productId,
+    required String wishListItemId
   }) async {
     final operationId = const Uuid().v4();
     final syncItem = SyncQueueItem(
@@ -80,13 +79,12 @@ class WishlistSyncService {
       type: 'wishlist_remove',
       payload: {
         'wishlist_item_id': wishListItemId,
-        'product_id': productId,
       },
       createdAt: DateTime.now(),
     );
 
     await HiveService.addToSyncQueue(syncItem);
-    debugPrint('📤 [WishlistSync] Queued remove operation: $productId');
+    debugPrint('📤 [WishlistSync] Queued remove operation: $wishListItemId');
   }
 
   /// Update notes operation to sync queue
