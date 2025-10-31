@@ -212,7 +212,11 @@ class HomeViewModel extends ChangeNotifier {
   }
   
   // Load products viewed by people with the same major
-  Future<void> loadMajorBasedProducts({int limit = 4, int windowDays = 30}) async {
+  Future<void> loadMajorBasedProducts({
+    int limit = 4, 
+    int windowDays = 30,
+    bool forceRefresh = false, // New parameter for pull-to-refresh
+  }) async {
     isLoadingMajorBased = true;
     notifyListeners();
     try {
@@ -224,6 +228,7 @@ class HomeViewModel extends ChangeNotifier {
           limit: limit,
           windowDays: windowDays,
           debug: true,
+          forceRefresh: forceRefresh, // Pass to service
         );
 
         // Cache major-based products
@@ -276,7 +281,11 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   // Cargar recomendaciones basadas en product_search_events
-  Future<void> loadRecommendations({int limit = 5, int windowDays = 30}) async {
+  Future<void> loadRecommendations({
+    int limit = 5, 
+    int windowDays = 30,
+    bool forceRefresh = false, // New parameter for pull-to-refresh
+  }) async {
     isLoadingRecommendations = true;
     notifyListeners();
     try {
@@ -285,6 +294,8 @@ class HomeViewModel extends ChangeNotifier {
         recommendedProducts = await _recService.fetchRecommendations(
           limit: limit,
           windowDays: windowDays,
+          debug: true, // Enable debug to see LRU hits/misses
+          forceRefresh: forceRefresh, // Pass to service
         );
 
         // Cache recommended products

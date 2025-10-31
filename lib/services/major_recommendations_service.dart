@@ -1,11 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:flutter/foundation.dart';
 import '../models/models.dart';
+import 'lru_cache_service.dart';
 
 /// Servicio para obtener recomendaciones basadas en vistas de usuarios con el mismo major
 class MajorRecommendationsService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
+
+  // LRU Cache for major-based recommendation results
+  // Key: userId, Value: List<Post>
+  final LruCacheService<String, List<Post>> _majorRecommendationCache = LruCacheService(
+    maxCapacity: 50, // Cache major-based recommendations for 50 users
+  );
 
   /// Obtiene el major del usuario actual
   Future<String?> getCurrentUserMajor() async {
@@ -25,11 +33,12 @@ class MajorRecommendationsService {
 
   /// Obtiene posts más vistos por usuarios con el mismo major que el usuario actual
   /// Si no hay usuarios con el mismo major, usa todos los usuarios
-  /// OPTIMIZED VERSION
+  /// OPTIMIZED VERSION with LRU Cache
   Future<List<Post>> getPostsByMajor({
     int limit = 4,
     int windowDays = 30,
     bool debug = false,
+    bool forceRefresh = false, // New parameter to bypass cache
   }) async {
     try {
       final stopwatch = Stopwatch()..start();
@@ -37,6 +46,22 @@ class MajorRecommendationsService {
       if (currentUserId == null) {
         if (debug) print('🎓 [MajorRecs] No hay usuario autenticado');
         return [];
+      }
+
+      // Try LRU cache first (unless force refresh)
+      if (!forceRefresh) {
+        final cached = _majorRecommendationCache.get(currentUserId);
+        if (cached != null) {
+          stopwatch.stop();
+          if (debug) {
+            print('🎓 [MajorRecs] ✅ LRU CACHE HIT - Returning ${cached.length} cached major-based recommendations (${stopwatch.elapsedMilliseconds}ms)');
+            print('🎓 [MajorRecs] 📊 LRU Hit Rate: ${_majorRecommendationCache.hitRate.toStringAsFixed(2)}%');
+          }
+          return cached;
+        }
+        if (debug) print('🎓 [MajorRecs] ❌ LRU CACHE MISS - Computing major-based recommendations...');
+      } else {
+        if (debug) print('🎓 [MajorRecs] 🔄 FORCE REFRESH - Bypassing cache...');
       }
 
       // 1. Obtener el major del usuario actual
@@ -256,8 +281,14 @@ class MajorRecommendationsService {
       }
 
       stopwatch.stop();
+      
+      // Cache the result for 30 minutes
+      _majorRecommendationCache.put(currentUserId, resultPosts, ttl: Duration(minutes: 30));
+      
       if (debug) {
         print('🎓 [MajorRecs] ⚡ TOTAL: ${resultPosts.length} posts en ${stopwatch.elapsedMilliseconds}ms');
+        print('🎓 [MajorRecs] 💾 Cached major-based recommendations for user $currentUserId (TTL: 30 min)');
+        print('🎓 [MajorRecs] 📊 LRU Hit Rate: ${_majorRecommendationCache.hitRate.toStringAsFixed(2)}%');
       }
 
       return resultPosts;

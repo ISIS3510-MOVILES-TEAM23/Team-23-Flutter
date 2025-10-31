@@ -19,6 +19,14 @@ class ChatRepository {
     return await _chatApi.getOrCreateProductChat(productId, sellerId);
   }
 
+  // Get existing product chat (returns null if doesn't exist) - Scenario 10
+  Future<String?> getExistingProductChat(
+    String productId,
+    String sellerId,
+  ) async {
+    return await _chatApi.getExistingProductChat(productId, sellerId);
+  }
+
   // Get chat info
   Future<Map<String, dynamic>> getChatInfo(String chatId) async {
     return await _chatApi.getChatInfo(chatId);

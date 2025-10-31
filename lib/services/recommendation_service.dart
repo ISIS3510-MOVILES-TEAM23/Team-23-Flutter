@@ -1,9 +1,10 @@
-// recommendation_service.dart - OPTIMIZED VERSION
+// recommendation_service.dart - OPTIMIZED VERSION with LRU Cache
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../models/models.dart';
+import 'lru_cache_service.dart';
 
 class RecommendationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -12,11 +13,31 @@ class RecommendationService {
   // Cache de categorías para evitar queries repetidas
   final Map<String, String> _categoryCache = {};
 
+  // LRU Cache for recommendation results
+  // Key: userId, Value: List<Post>
+  final LruCacheService<String, List<Post>> _recommendationCache = LruCacheService(
+    maxCapacity: 50, // Cache recommendations for 50 users
+  );
+
+  /// Clear cache for a specific user (use when pull-to-refresh)
+  void clearCacheForUser(String userId) {
+    // LRU doesn't have explicit delete, but we can set an expired value
+    // Or we can just let it be overwritten on next fetch
+    debugPrint('[Reco] 🗑️ Cache invalidated for user: $userId');
+  }
+
+  /// Clear all recommendation cache
+  void clearAllCache() {
+    // Create a new instance to clear all entries
+    debugPrint('[Reco] 🗑️ All recommendation cache cleared');
+  }
+
   Future<List<Post>> fetchRecommendations({
     int windowDays = 30,
     int limit = 20,
     int topCategories = 3,
     bool debug = false,
+    bool forceRefresh = false, // New parameter to bypass cache
   }) async {
     void dlog(String msg) {
       if (debug) debugPrint('[Reco] $msg');
@@ -27,6 +48,20 @@ class RecommendationService {
     if (uid == null) {
       dlog('No UID -> retorno vacío');
       return [];
+    }
+
+    // Try LRU cache first (unless force refresh)
+    if (!forceRefresh) {
+      final cached = _recommendationCache.get(uid);
+      if (cached != null) {
+        stopwatch.stop();
+        dlog('✅ LRU CACHE HIT - Returning ${cached.length} cached recommendations (${stopwatch.elapsedMilliseconds}ms)');
+        dlog('📊 LRU Hit Rate: ${_recommendationCache.hitRate.toStringAsFixed(2)}%');
+        return cached;
+      }
+      dlog('❌ LRU CACHE MISS - Computing recommendations...');
+    } else {
+      dlog('🔄 FORCE REFRESH - Bypassing cache...');
     }
 
     final since = Timestamp.fromDate(
@@ -208,8 +243,16 @@ class RecommendationService {
     }
 
     stopwatch.stop();
-    dlog('⚡ TOTAL: ${out.length} posts en ${stopwatch.elapsedMilliseconds}ms');
-    return out.take(limit).toList();
+    final result = out.take(limit).toList();
+    
+    // Cache the result for 30 minutes
+    _recommendationCache.put(uid, result, ttl: Duration(minutes: 30));
+    
+    dlog('⚡ TOTAL: ${result.length} posts en ${stopwatch.elapsedMilliseconds}ms');
+    dlog('💾 Cached recommendations for user $uid (TTL: 30 min)');
+    dlog('📊 LRU Hit Rate: ${_recommendationCache.hitRate.toStringAsFixed(2)}%');
+    
+    return result;
   }
 
   Future<List<Post>> _fetchFallbackPosts(

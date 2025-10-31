@@ -17,6 +17,8 @@ class LocalStorageService {
   static const String userBoxName = 'user';
   static const String syncQueueBoxName = 'sync_queue';
   static const String metadataBoxName = 'metadata';
+  static const String draftsBoxName = 'drafts'; // Scenario 8
+  static const String salesCacheBoxName = 'sales_cache'; // Scenario 12
 
   /// Initialize Hive database
   Future<void> initialize() async {
@@ -33,6 +35,8 @@ class LocalStorageService {
         Hive.openBox(userBoxName),
         Hive.openBox(syncQueueBoxName),
         Hive.openBox(metadataBoxName),
+        Hive.openBox(draftsBoxName), // Scenario 8
+        Hive.openBox(salesCacheBoxName), // Scenario 12
       ]);
 
       _isInitialized = true;
@@ -160,6 +164,8 @@ class LocalStorageService {
         userBoxName,
         syncQueueBoxName,
         metadataBoxName,
+        draftsBoxName, // Scenario 8
+        salesCacheBoxName, // Scenario 12
       ];
       for (final boxName in boxNames) {
         try {

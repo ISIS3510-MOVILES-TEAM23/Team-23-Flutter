@@ -103,6 +103,64 @@ class ChatService {
     return chatRef.id;
   }
 
+  /// Get existing product chat without creating one (Scenario 10)
+  /// Returns null if no chat exists
+  static Future<String?> getExistingProductChat(String productId, String sellerId) async {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null) return null;
+
+    // You can't chat with yourself
+    if (currentUserId == sellerId) return null;
+
+    try {
+      // OFFLINE - Check cache
+      if (!_connectivity.isConnected) {
+        debugPrint('[Chat] 📴 OFFLINE - Checking for existing chat in cache...');
+        
+        // Check if there's a cached chat for this product
+        final cachedChats = await _cache.getCachedUserChats();
+        if (cachedChats != null) {
+          for (final chatJson in cachedChats) {
+            final productId_ = chatJson['product_id']?.toString();
+            final participants = List<String>.from(chatJson['participant_ids'] ?? []);
+            if (productId_ == productId && 
+                participants.contains(currentUserId) && 
+                participants.contains(sellerId)) {
+              final chatId = chatJson['chatId']?.toString() ?? chatJson['id']?.toString();
+              debugPrint('[Chat] ✅ Found existing chat in cache: $chatId');
+              return chatId;
+            }
+          }
+        }
+        
+        debugPrint('[Chat] ⚠️ No existing chat found in cache');
+        return null;
+      }
+
+      // ONLINE - Query Firestore
+      final existingChats = await _db.collection('chats')
+          .where('product_id', isEqualTo: productId)
+          .where('participant_ids', arrayContains: currentUserId)
+          .get();
+
+      // Filter to find the chat with the correct seller
+      for (final doc in existingChats.docs) {
+        final data = doc.data();
+        final participants = List<String>.from(data['participant_ids'] ?? []);
+        if (participants.contains(sellerId)) {
+          debugPrint('[Chat] ✅ Existing chat found: ${doc.id}');
+          return doc.id;
+        }
+      }
+
+      debugPrint('[Chat] ⚠️ No existing chat found');
+      return null;
+    } catch (e) {
+      debugPrint('[Chat] ❌ Error checking existing chat: $e');
+      return null;
+    }
+  }
+
   static Future<String> getOrCreateChatByBuyerSellerProduct({
     required String buyerId,
     required String sellerId,

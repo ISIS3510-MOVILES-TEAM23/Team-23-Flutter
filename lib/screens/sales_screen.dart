@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../theme/app_colors.dart';
 import '../widgets/offline_network_image.dart';
+import '../services/connectivity_service.dart';
+import '../services/sales_cache_service.dart';
 
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
@@ -21,6 +23,10 @@ class _SalesScreenState extends State<SalesScreen>
   List<PostWithChat> completedSales = [];
   User? user;
   bool isLoading = true;
+  bool isLoadedFromCache = false;
+  
+  final ConnectivityService _connectivity = ConnectivityService();
+  final SalesCacheService _salesCache = SalesCacheService();
 
   @override
   void initState() {
@@ -29,11 +35,83 @@ class _SalesScreenState extends State<SalesScreen>
     _loadSalesData();
   }
 
+  // Scenario 12: Handle refresh with offline check
+  Future<void> _handleRefresh() async {
+    if (!_connectivity.isConnected) {
+      // Show message: cannot refresh while offline
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Cannot refresh while offline'),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+    
+    // Online - reload data
+    await _loadSalesData();
+  }
+
+  // Scenario 12: Load sales with offline support using LRU cache
   Future<void> _loadSalesData() async {
     try {
-      user = await FirestoreService.getCurrentUser();
-      final sales =
-          await FirestoreService.getUserPostsWithChats(user?.id ?? '');
+      setState(() {
+        isLoading = true;
+      });
+
+      // Get current Firebase Auth user (works offline)
+      final firebaseUser = FirestoreService.getCurrentFirebaseUser();
+      if (firebaseUser == null) {
+        debugPrint('[SalesScreen] ❌ No Firebase user logged in');
+        setState(() {
+          isLoading = false;
+        });
+        return;
+      }
+
+      final userId = firebaseUser.uid;
+      debugPrint('[SalesScreen] 👤 User ID: $userId');
+
+      List<PostWithChat> sales = [];
+
+      // Try network first if online
+      if (_connectivity.isConnected) {
+        // Get full user object when online
+        user = await FirestoreService.getCurrentUser();
+        try {
+          debugPrint('[SalesScreen] 📦 Online - Fetching sales from network...');
+          sales = await FirestoreService.getUserPostsWithChats(userId);
+          
+          // Cache in LRU
+          await _salesCache.cacheSales(userId, sales);
+          
+          isLoadedFromCache = false;
+          debugPrint('[SalesScreen] ✅ Got ${sales.length} sales from network');
+        } catch (e) {
+          debugPrint('[SalesScreen] ❌ Network failed, trying cache: $e');
+          // Fallback to cache
+          final cached = await _salesCache.getCachedSales(userId);
+          if (cached != null) {
+            sales = cached;
+            isLoadedFromCache = true;
+            debugPrint('[SalesScreen] 📦 Loaded ${sales.length} sales from cache');
+          }
+        }
+      } else {
+        // Offline - load from cache
+        debugPrint('[SalesScreen] 📴 Offline - Loading from LRU cache...');
+        final cached = await _salesCache.getCachedSales(userId);
+        if (cached != null) {
+          sales = cached;
+          isLoadedFromCache = true;
+          debugPrint('[SalesScreen] ✅ Loaded ${sales.length} sales from cache');
+        } else {
+          debugPrint('[SalesScreen] ⚠️ No cached sales (open app online first)');
+        }
+      }
 
       setState(() {
         allSales = sales;
@@ -47,7 +125,12 @@ class _SalesScreenState extends State<SalesScreen>
             sales.where((s) => s.sale?.status == 'completed').toList();
         isLoading = false;
       });
+
+      // Print LRU stats (Scenario 12: demonstrate LRU usage)
+      final stats = _salesCache.getStats();
+      debugPrint('[SalesScreen] 📊 LRU Stats: Size=${stats['size']}, HitRate=${stats['hitRate']}');
     } catch (e) {
+      debugPrint('[SalesScreen] ❌ Error loading sales: $e');
       setState(() {
         isLoading = false;
       });
@@ -78,6 +161,30 @@ class _SalesScreenState extends State<SalesScreen>
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                // Scenario 12: Offline banner with timestamp
+                if (isLoadedFromCache)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    color: Colors.orange.shade100,
+                    child: Row(
+                      children: [
+                        Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Offline - Last updated: ${_salesCache.cacheAgeString ?? "Unknown"}. Status may have changed.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade900,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                
                 // Statistics Section
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -118,15 +225,18 @@ class _SalesScreenState extends State<SalesScreen>
                   ),
                 ),
 
-                // TabBarView
+                // TabBarView with pull-to-refresh (Scenario 12)
                 Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildSalesList(allSales),
-                      _buildSalesList(pendingSales),
-                      _buildSalesList(completedSales),
-                    ],
+                  child: RefreshIndicator(
+                    onRefresh: _handleRefresh,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSalesList(allSales),
+                        _buildSalesList(pendingSales),
+                        _buildSalesList(completedSales),
+                      ],
+                    ),
                   ),
                 ),
               ],

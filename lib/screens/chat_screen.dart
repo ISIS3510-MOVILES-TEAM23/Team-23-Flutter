@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../services/chat_api.dart';
 import '../services/firestore_service.dart';
+import '../services/connectivity_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/offline_network_image.dart';
 import '../widgets/rating_widget.dart';
@@ -40,6 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _chatId;
   final ChatApi _chat = ChatApi();
   bool _hasRated = false;
+  final ConnectivityService _connectivity = ConnectivityService();
 
   @override
   void initState() {
@@ -280,6 +282,29 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          // Offline banner - Scenario 7
+          if (!_connectivity.isConnected)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              color: Colors.orange.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Offline - Showing cached messages. New messages will appear when online.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade900,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Información del producto
           if (_product != null)
             Container(

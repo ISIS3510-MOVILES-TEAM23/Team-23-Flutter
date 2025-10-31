@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../view_models/categories_view_model.dart';
+import '../services/connectivity_service.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -28,6 +29,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final connectivity = ConnectivityService();
+    
     return ListenableBuilder(
       listenable: viewModel,
       builder: (context, child) {
@@ -47,6 +50,32 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         backgroundColor:
                             Theme.of(context).appBarTheme.backgroundColor,
                       ),
+
+                      // Scenario 11: Offline banner when loaded from cache
+                      if (viewModel.isLoadedFromCache)
+                        SliverToBoxAdapter(
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            color: Colors.orange.shade100,
+                            child: Row(
+                              children: [
+                                Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Offline - Showing cached categories.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange.shade900,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
 
                       // Categories title
                       const SliverToBoxAdapter(

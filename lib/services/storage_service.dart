@@ -66,20 +66,48 @@ class StorageService {
     String folder,
   ) async {
     try {
+      print('[StorageService] 📤 Starting upload...');
+      print('[StorageService]   File: ${file.path}');
+      print('[StorageService]   Folder: $folder');
+      
+      // Validate file exists
+      if (!await file.exists()) {
+        print('[StorageService] ❌ File does not exist');
+        return null;
+      }
+      
+      final fileSize = await file.length();
+      print('[StorageService]   Size: $fileSize bytes');
+      
+      if (fileSize == 0) {
+        print('[StorageService] ❌ File is empty (0 bytes)');
+        return null;
+      }
+      
       final String fileName = 'img_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final String path = 'public/$folder/$fileName';
+      
+      print('[StorageService]   Destination: $path');
+      print('[StorageService]   Bucket: ${_storage.bucket}');
       
       final ref = _storage.ref().child(path);
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
       );
       
+      print('[StorageService] ☁️  Uploading to Firebase Storage...');
       final snap = await ref.putFile(file, metadata);
+      
+      print('[StorageService] ✅ Upload complete!');
+      print('[StorageService]   Getting download URL...');
+      
       final url = await snap.ref.getDownloadURL();
+      
+      print('[StorageService] 🔗 Download URL: $url');
       
       return url;
     } catch (e) {
-      print('Error uploading image: $e');
+      print('[StorageService] ❌ Error uploading image: $e');
       return null;
     }
   }

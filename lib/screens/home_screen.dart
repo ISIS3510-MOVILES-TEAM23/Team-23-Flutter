@@ -90,15 +90,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? _buildFirstTimeOfflineFallback(context) // Scenario 4
                         : RefreshIndicator(
                             // Refresca productos, major-based, nearby y recomendaciones
+                            // forceRefresh: true bypasses LRU cache for fresh data
                             onRefresh: () async {
                               await viewModel.loadProducts();
-                              await viewModel.loadMajorBasedProducts();
+                              await viewModel.loadMajorBasedProducts(forceRefresh: true); // LRU bypass
                               await viewModel.loadNearbyProducts(
                                   limit: 10); // Refresh nearby products
                               setState(() {
                                 _recsFuture = RecommendationService()
                                     .fetchRecommendations(
-                                        limit: 5, windowDays: 30, debug: true);
+                                        limit: 5, 
+                                        windowDays: 30, 
+                                        debug: true,
+                                        forceRefresh: true); // LRU bypass
                               });
                               // (opcional) espera a que termine
                               await _recsFuture;

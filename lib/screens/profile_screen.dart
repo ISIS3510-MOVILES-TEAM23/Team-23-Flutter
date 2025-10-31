@@ -603,6 +603,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
+            const SizedBox(height: 12),
+
+            // Drafts Button - Full Width (Scenario 8)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    context.push('/profile/drafts');
+                  },
+                  icon: const Icon(Icons.drafts_outlined, size: 20),
+                  label: const Text(
+                    'Drafts',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.borderColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 32),
 
             // My Products Section

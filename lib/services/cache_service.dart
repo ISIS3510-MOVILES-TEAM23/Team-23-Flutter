@@ -167,41 +167,60 @@ class CacheService {
   /// Cache categories
   Future<void> cacheCategories(List<Map<String, dynamic>> categories) async {
     try {
+      debugPrint('[Cache] 💾 Attempting to cache ${categories.length} categories...');
       final cacheData = {
         'data': categories,
         'timestamp': DateTime.now().toIso8601String(),
       };
+      final jsonString = jsonEncode(cacheData);
+      debugPrint('[Cache] 📦 JSON size: ${jsonString.length} bytes');
+      
       await _storage.save(
         LocalStorageService.categoriesBoxName,
         'all_categories',
-        jsonEncode(cacheData),
+        jsonString,
       );
-      debugPrint('[Cache] ✓ Cached ${categories.length} categories');
+      debugPrint('[Cache] ✅ Successfully cached ${categories.length} categories');
     } catch (e) {
-      debugPrint('[Cache] ✗ Failed to cache categories: $e');
+      debugPrint('[Cache] ❌ Failed to cache categories: $e');
+      rethrow;
     }
   }
 
   /// Get cached categories
   Future<List<Map<String, dynamic>>?> getCachedCategories() async {
     try {
+      debugPrint('[Cache] 🔍 Looking for cached categories...');
+      debugPrint('[Cache] 📍 Box: ${LocalStorageService.categoriesBoxName}, Key: all_categories');
+      
       final cached = _storage.get(
         LocalStorageService.categoriesBoxName,
         'all_categories',
       );
 
-      if (cached == null) return null;
-
-      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
-      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
-
-      if (DateTime.now().difference(timestamp) > categoriesCacheDuration) {
+      if (cached == null) {
+        debugPrint('[Cache] ⚠️ No cached categories found');
         return null;
       }
 
-      return (cacheData['data'] as List)
+      debugPrint('[Cache] 📦 Found cached data, size: ${cached.toString().length} bytes');
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+      final age = DateTime.now().difference(timestamp);
+      
+      debugPrint('[Cache] ⏰ Cache age: ${age.inDays} days, ${age.inHours % 24} hours');
+
+      if (age > categoriesCacheDuration) {
+        debugPrint('[Cache] ⚠️ Categories cache expired (${age.inDays} days > 30 days)');
+        return null;
+      }
+
+      final categoriesList = (cacheData['data'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
+      
+      debugPrint('[Cache] ✅ Retrieved ${categoriesList.length} cached categories');
+      return categoriesList;
     } catch (e) {
       debugPrint('[Cache] ✗ Failed to get cached categories: $e');
       return null;

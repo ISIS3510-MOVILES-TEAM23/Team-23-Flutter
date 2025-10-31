@@ -9,6 +9,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/models.dart';
+import 'cache_service.dart'; // Scenario 8: For offline categories
+import 'connectivity_service.dart'; // Scenario 8: Check connection status
 
 class FirestoreService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -299,14 +301,72 @@ class FirestoreService {
   }
 
   static Future<List<Category>> getCategories({bool debug = false}) async {
-    final snapshot = await _db.collection('categories').get();
-    final allCategories = snapshot.docs.map((doc) {
-      final data = Map<String, dynamic>.from(doc.data());
-      data['id'] = doc.id;
-      data['_id'] = doc.id;
-      return Category.fromJson(data);
-    }).toList();
-    return allCategories;
+    // Scenario 8: Smart cache strategy for categories
+    
+    // Import ConnectivityService to check connection status
+    final connectivity = ConnectivityService();
+    final isOffline = !connectivity.isConnected;
+    
+    // STRATEGY 1: If offline, try cache FIRST (faster + avoids timeout)
+    if (isOffline) {
+      debugPrint('[Firestore] 📴 Offline detected - loading categories from cache first...');
+      try {
+        final cached = await CacheService().getCachedCategories();
+        if (cached != null && cached.isNotEmpty) {
+          debugPrint('[Firestore] ✅ Loaded ${cached.length} categories from cache (offline mode)');
+          return cached.map((json) => Category.fromJson(json)).toList();
+        }
+        debugPrint('[Firestore] ⚠️ No cached categories found (offline mode)');
+      } catch (e) {
+        debugPrint('[Firestore] ✗ Failed to load from cache: $e');
+      }
+      
+      // If cache fails and we're offline, throw error with helpful message
+      throw Exception('No internet connection and no cached categories available. Please connect to internet to load categories for the first time.');
+    }
+    
+    // STRATEGY 2: If online, fetch from Firestore and update cache
+    try {
+      debugPrint('[Firestore] 📂 Online - fetching categories from Firestore...');
+      final snapshot = await _db.collection('categories').get();
+      final allCategories = snapshot.docs.map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        data['id'] = doc.id;
+        data['_id'] = doc.id;
+        return Category.fromJson(data);
+      }).toList();
+      
+      debugPrint('[Firestore] ✓ Fetched ${allCategories.length} categories from Firestore');
+      
+      // Cache for offline use (AWAIT to ensure it's saved)
+      if (allCategories.isNotEmpty) {
+        try {
+          await CacheService().cacheCategories(
+            allCategories.map((c) => c.toJson()).toList(),
+          );
+          debugPrint('[Firestore] ✓ Categories cached successfully for offline use');
+        } catch (e) {
+          debugPrint('[Firestore] ⚠️ Failed to cache categories: $e');
+        }
+      }
+      
+      return allCategories;
+    } catch (e) {
+      // STRATEGY 3: If Firestore fails but we think we're online, try cache as fallback
+      debugPrint('[Firestore] ⚠️ Failed to fetch from Firestore: $e');
+      debugPrint('[Firestore] 🔄 Attempting fallback to cache...');
+      
+      final cached = await CacheService().getCachedCategories();
+      if (cached != null && cached.isNotEmpty) {
+        debugPrint('[Firestore] ✅ Loaded ${cached.length} categories from cache (fallback)');
+        return cached.map((json) => Category.fromJson(json)).toList();
+      }
+      
+      // No cache available
+      debugPrint('[Firestore] ❌ No cached categories available');
+      debugPrint('[Firestore] ℹ️  Please connect to internet to load categories');
+      rethrow;
+    }
   }
 
   static Future<List<Post>> getPostsByCategory(String categoryId,
@@ -387,6 +447,12 @@ class FirestoreService {
     }).toList();
   }
 
+  /// Get current Firebase Auth user (works offline)
+  static auth.User? getCurrentFirebaseUser() {
+    return _auth.currentUser;
+  }
+
+  /// Get current user from Firestore (requires network)
   static Future<User?> getCurrentUser() async {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return null;

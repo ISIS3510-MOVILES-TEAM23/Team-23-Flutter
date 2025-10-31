@@ -12,6 +12,7 @@ import 'services/connectivity_provider.dart';
 import 'services/local_storage_service.dart';
 import 'services/sync_queue_service.dart';
 import 'services/prefetch_service.dart';
+import 'services/draft_upload_service.dart';
 import 'view_models/notification_view_model.dart';
 import 'widgets/notification_banner.dart';
 import 'widgets/offline_banner.dart';
@@ -54,6 +55,10 @@ void main() async {
 
   // Start auto-sync for queued operations (Scenario 6)
   SyncQueueService().startAutoSync();
+
+  // Initialize draft upload service (Scenario 8)
+  // This will automatically process pending drafts when connectivity is restored
+  DraftUploadService();
 
   debugPrint('🚀 App initialized with manual caching (Firebase auto-cache DISABLED)');
 

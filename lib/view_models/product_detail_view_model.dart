@@ -32,6 +32,7 @@ class ProductDetailViewModel extends ChangeNotifier {
   bool isInWishList = false;
   int currentImageIndex = 0;
   bool isLoadedFromCache = false;
+  bool hasExistingChat = false;
 
   Future<void> loadProduct(String productId) async {
     try {
@@ -62,6 +63,11 @@ class ProductDetailViewModel extends ChangeNotifier {
 
             // Check if product is in wish list
             isInWishList = await _wishListRepository.isInWishList(productId);
+
+            // Scenario 10: Check if chat already exists
+            if (prod.userId != null) {
+              hasExistingChat = await _checkExistingChat(productId, prod.userId);
+            }
           }
         } catch (e) {
           debugPrint('[ProductDetail] Network failed, trying cache: $e');
@@ -74,6 +80,11 @@ class ProductDetailViewModel extends ChangeNotifier {
               user = User.fromJson(cachedUser);
             }
             isLoadedFromCache = true;
+
+            // Check for existing chat (can work offline if cached)
+            if (prod.userId != null) {
+              hasExistingChat = await _checkExistingChat(productId, prod.userId);
+            }
           }
         }
       } else {
@@ -89,6 +100,11 @@ class ProductDetailViewModel extends ChangeNotifier {
           isLoadedFromCache = true;
           // Can't check wish list offline - skip
           isInWishList = false;
+
+          // Scenario 10: Check for existing chat (can work offline if cached)
+          if (prod.userId != null) {
+            hasExistingChat = await _checkExistingChat(productId, prod.userId);
+          }
         }
       }
 
@@ -222,5 +238,26 @@ class ProductDetailViewModel extends ChangeNotifier {
       }
     }
     return null;
+  }
+
+  /// Check if a chat already exists for this product (Scenario 10)
+  Future<bool> _checkExistingChat(String productId, String sellerId) async {
+    try {
+      final currentUserId = await _userRepository.getCurrentUserId();
+      if (currentUserId == null || currentUserId == sellerId) {
+        return false;
+      }
+
+      // Try to get existing chat ID
+      final chatId = await _chatRepository.getExistingProductChat(
+        productId,
+        sellerId,
+      );
+
+      return chatId != null;
+    } catch (e) {
+      debugPrint('[ProductDetail] Error checking existing chat: $e');
+      return false;
+    }
   }
 }
