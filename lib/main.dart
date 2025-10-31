@@ -5,14 +5,20 @@ import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
 import 'router.dart';
+import 'services/connectivity_service.dart';
 import 'services/firestore_service.dart';
 import 'services/hive_service.dart';
+import 'services/wishlist_sync_service.dart';
 import 'theme/app_colors.dart';
 import 'view_models/notification_view_model.dart';
 import 'widgets/notification_banner.dart';
 
 // Tiempo de inicio para medir duración del lanzamiento
 DateTime? _appStartTime;
+
+// Global services for connectivity and sync
+ConnectivityService? _connectivityService;
+WishlistSyncService? _wishlistSyncService;
 
 void main() async {
   _appStartTime = DateTime.now();
@@ -27,6 +33,14 @@ void main() async {
     // Continuar sin .env (las features de IA no funcionarán)
   }
 
+  // Initialize Firebase first (required for sync operations)
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+  debugPrint('✅ Firebase initialized');
+
   // Initialize Hive for local database
   try {
     await HiveService.initialize();
@@ -36,11 +50,24 @@ void main() async {
     // App can continue without Hive, but offline features won't work
   }
 
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  }
+  // Initialize connectivity and sync services in background (non-blocking)
+  Future.delayed(Duration.zero, () async {
+    try {
+      _connectivityService = ConnectivityService();
+      await _connectivityService!.checkConnectivity();
+      _connectivityService!.startMonitoring();
+      debugPrint('✅ Connectivity service initialized');
+      
+      // Initialize wishlist sync service
+      _wishlistSyncService = WishlistSyncService(
+        connectivityService: _connectivityService,
+      );
+      _wishlistSyncService!.startMonitoring();
+      debugPrint('✅ Wishlist sync service initialized');
+    } catch (e) {
+      debugPrint('⚠️ Error initializing background services: $e');
+    }
+  });
   runApp(
     MultiProvider(
       providers: [

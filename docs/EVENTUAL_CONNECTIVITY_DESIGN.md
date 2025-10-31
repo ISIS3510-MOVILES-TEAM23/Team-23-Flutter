@@ -226,41 +226,65 @@ This document describes the eventual connectivity scenarios for the Campus Marke
 
 ---
 
-## BLE Product Discovery - Buyer Mode (Already Implemented ✅)
+## Wishlist Screen
 
-### Scenario 15: Advertise Interest in Product Offline
+### Scenario 15: Add/Remove Products from Wishlist Without Internet
 
 | Aspect | Description |
 |--------|-------------|
-| **Event Description** | The user (buyer) wants to signal interest in a product using BLE but has no internet connection. |
-| **System Response** | System starts BLE advertising with payload (postId\|userId) for 60 seconds. Works completely offline. Shows message: "Broadcasting your interest to nearby sellers. This works without internet!" Auto-stops after 60 seconds with notification. |
-| **Possible Antipatterns** | None - perfect offline-first implementation |
-| **Caching + Retrieving Strategy** | #8 Peer-to-peer (device-to-device, no server) |
-| **Storage Type** | N/A (uses BLE radio, no persistence needed) |
-| **Stored Data Type** | Ephemeral BLE advertisement data (manufacturer data: postId\|userId) |
-| **Rationale** | BLE (Bluetooth Low Energy) is specifically designed for offline peer-to-peer discovery without requiring internet or servers. The buyer advertises their interest in a specific product by broadcasting a BLE beacon containing postId and userId. Nearby sellers scanning for buyers can discover this interest completely offline. This is an excellent example of eventual connectivity: discover offline, connect later. When both users are online later, seller can initiate chat. The 60-second timeout prevents battery drain. This feature works perfectly without any network dependency. |
+| **Event Description** | The user wants to add or remove products from their wishlist but has no internet connection. |
+| **System Response** | System allows adding/removing products with immediate UI update (optimistic UI). Shows toast notification: "Wishlist updated. Changes will sync when online." Heart icon toggles instantly. Changes are queued locally. When connection restored, wishlist syncs automatically with Firestore. If conflicts occur (same product modified on different device), last-write-wins. |
+| **Possible Antipatterns** | #4 Lost content, #5 Unavailable functionality after connection recovery |
+| **Caching + Retrieving Strategy** | #3 Network falling back to cache, #5 Queue and sync on reconnect |
+| **Storage Type** | 2. Local database (Hive) with sync queue + App cache directory (for images) |
+| **Stored Data Type** | WishlistItem Documents (userId, postId, addedAt, syncStatus: pending/synced), SyncQueue (operationId, type: wishlist_add/wishlist_remove, payload: {postId}, retryCount) + cached image files |
+| **Rationale** | Wishlist is a personal collection that users frequently modify while browsing. Blocking this functionality offline would frustrate users and lose valuable intent data. Optimistic UI provides instant feedback. Queue-based sync ensures no changes are lost. Wishlist operations are idempotent (adding twice = added once, removing non-existent = no-op), making them safe for offline queuing. Last-write-wins conflict resolution is acceptable since wishlist is personal and conflicts are rare. When online, sync happens in background with exponential backoff (3 retries: 0s, 5s, 15s). This feature enables continuous browsing and curation even offline. |
+
+### Scenario 16: View Wishlist Without Internet
+
+| Aspect | Description |
+|--------|-------------|
+| **Event Description** | The user wants to view their saved wishlist products but has no internet connection. |
+| **System Response** | System displays cached wishlist with banner: "Offline - Showing your saved wishlist. Last synced: 30 minutes ago." Shows product thumbnails from cached_network_image, title, and price. Tapping a product opens cached Product Detail screen (Scenario 9). Pull-to-refresh shows message: "Cannot refresh while offline." |
+| **Possible Antipatterns** | #4 Lost content, #3 Non-informative message |
+| **Caching + Retrieving Strategy** | #3 Network falling back to cache, #1 Cache falling back to network |
+| **Storage Type** | 2. Local database (Hive) + cached_network_image |
+| **Stored Data Type** | WishlistItem Documents with embedded Post data (postId, title, price, imageUrl, availability), cached image files |
+| **Rationale** | Wishlist is a frequently accessed collection that users reference during comparison shopping. Full offline access is essential. Cached wishlist includes embedded product data (title, price, images) to avoid additional lookups. When products in wishlist are updated online (price change, sold), changes sync next time user goes online. Clear "last synced" timestamp manages expectations. Images use cached_network_image for automatic caching. If wishlist is empty on first load offline, shows message: "Connect to internet to load your wishlist." This maintains engagement and allows users to review saved items anytime. |
 
 ---
 
-## BLE Product Discovery - Seller Mode (Already Implemented ✅)
+## User Ranking Screen
 
-### Scenario 16: Scan for Interested Buyers Offline
+### Scenario 17: View User Rankings Without Internet
 
 | Aspect | Description |
 |--------|-------------|
-| **Event Description** | The user (seller) scans for interested buyers using BLE but has no internet connection. |
-| **System Response** | System starts BLE scanning, discovers nearby advertising buyers, decodes postId/userId payload, and displays list: "Found 3 interested buyers nearby." Shows buyer info if cached, otherwise shows userId. "Contact Buyer" buttons are disabled with message: "Connect to internet to start chat." Works completely offline for discovery. |
-| **Possible Antipatterns** | None - perfect offline-first implementation |
-| **Caching + Retrieving Strategy** | #8 Peer-to-peer (device-to-device) |
-| **Storage Type** | 4. Memory (temporary discovery list during scan session) |
-| **Stored Data Type** | Discovered device list (deviceId, postId, userId, RSSI signal strength) |
-| **Rationale** | BLE scanning requires no internet - it's pure device-to-device radio communication. Seller discovers buyers who are advertising interest in their products within Bluetooth range (~10-30 meters). Discovered buyers are stored in memory during the scan session. When both users are online later, seller can initiate chat using the cached userId and postId. The service uses Isolate (multi-threading) for data processing to prevent UI blocking during heavy scan operations. This complements the online marketplace by enabling offline product discovery at physical locations like campus cafeterias or libraries. |
+| **Event Description** | The user wants to check seller/buyer reputation rankings but has no internet connection. |
+| **System Response** | System displays cached user ratings with banner: "Offline - Showing last known ratings. Last updated: 2 hours ago." Shows star rating, total reviews count, and cached review comments. User profile includes cached reputation badge (Gold Seller, Verified Buyer, etc.). "Submit Review" button is disabled with message: "Connect to internet to submit reviews." |
+| **Possible Antipatterns** | #4 Lost content, #3 Non-informative message, #2 Stuck progress bar |
+| **Caching + Retrieving Strategy** | #3 Network falling back to cache, #1 Cache falling back to network |
+| **Storage Type** | 2. Local database (Hive) + 1.e. Firestore cache |
+| **Stored Data Type** | UserRating Documents (userId, averageRating, totalReviews, reputationScore, badgeLevel, lastUpdated), Review Documents (reviewId, reviewerId, rating, comment, createdAt) - cached last 20 reviews per user |
+| **Rationale** | User reputation is critical trust signal for marketplace transactions. Users check seller ratings before contacting or purchasing. Caching ratings prevents loss of this important decision-making data offline. Ratings change slowly (accumulate over time), making them ideal for caching with 24-hour expiration. Clear "last updated" timestamp helps users assess freshness. Cannot submit new reviews offline because reputation calculations require server-side aggregation to prevent tampering and ensure fairness. Cached reviews provide sufficient context for trust decisions. When online, ratings refresh automatically in background. This balances transparency (show cached data with timestamp) with security (reviews must be validated online). |
+
+### Scenario 18: Submit Review Without Internet
+
+| Aspect | Description |
+|--------|-------------|
+| **Event Description** | The user wants to submit a review/rating for a seller/buyer but has no internet connection. |
+| **System Response** | Review form works normally (star selection, comment text). When tapping "Submit Review", system saves review as draft with notification: "Review saved. Will be submitted when online." Draft appears in "Pending Reviews" section. When connection restored, review submits automatically with background notification: "Your review has been posted." Review requires transaction verification server-side before posting. |
+| **Possible Antipatterns** | #4 Lost content, #5 Unavailable functionality after connection recovery |
+| **Caching + Retrieving Strategy** | #5 Queue and sync on reconnect |
+| **Storage Type** | 2. Local database (Hive) with sync queue |
+| **Stored Data Type** | DraftReview Documents (draftId: UUID, revieweeId, transactionId, rating, comment, createdAt, syncStatus: pending/syncing/failed, retryCount), SyncQueue (operationId, type: review_submit, payload) |
+| **Rationale** | Reviews contain valuable user feedback that should never be lost. Users invest emotional energy writing reviews, especially negative ones about bad experiences. Losing this content creates frustration and looks unprofessional. Draft + queue approach preserves content while preventing fake reviews. Server-side validation checks: (1) transaction actually occurred between users, (2) no duplicate reviews for same transaction, (3) review timing is reasonable (within 30 days of transaction). Cannot post review immediately offline because these validations require database queries. When online, reviews sync with exponential backoff (3 retries). Failed reviews (e.g., invalid transaction) show error: "Review could not be posted. Transaction not found." This protects reputation system integrity while maximizing content preservation. |
 
 ---
 
 ## Search Screen
 
-### Scenario 17: Search Products Without Internet
+### Scenario 19: Search Products Without Internet
 
 | Aspect | Description |
 |--------|-------------|
@@ -291,8 +315,10 @@ This document describes the eventual connectivity scenarios for the Campus Marke
 | **Sales View** | #3 Cache fallback | ✅ View only | Medium |
 | **Confirm Purchase** | N/A (Network only) | ❌ Blocked | N/A |
 | **Profile Edit** | #5 Queue & sync | ✅ Full | Low |
-| **BLE Buyer Mode** | #8 Peer-to-peer | ✅ Full | Medium |
-| **BLE Seller Mode** | #8 Peer-to-peer | ✅ Full | Medium |
+| **Wishlist Add/Remove** | #5 Queue & sync | ✅ Full | High |
+| **Wishlist View** | #3 Cache fallback | ✅ Full | High |
+| **User Rankings View** | #3 Cache fallback | ✅ View only | Medium |
+| **Submit Review** | #5 Queue & sync | ✅ Draft mode | Medium |
 | **Search** | #3 Cache fallback | ✅ Limited | Medium |
 
 ---
@@ -302,10 +328,10 @@ This document describes the eventual connectivity scenarios for the Campus Marke
 | Antipattern | Prevention Strategy | Affected Scenarios |
 |-------------|---------------------|-------------------|
 | **#1 Blocked Application** | Cache auth token in SharedPreferences for offline access | 1, 1b |
-| **#2 Stuck Progress Bar** | Show cached data immediately OR clear error messages | 3, 4, 6, 7, 12 |
+| **#2 Stuck Progress Bar** | Show cached data immediately OR clear error messages | 3, 4, 6, 7, 12, 17 |
 | **#3 Non-informative Message** | Provide context: "Offline - Showing cached products" | All scenarios |
-| **#4 Lost Content** | Queue operations, auto-save drafts, cache data, cache auth token | 1, 3, 6, 7, 8, 9, 11, 12, 14, 17 |
-| **#5 Unavailable After Recovery** | Automatic background sync with notifications | 5, 6, 8, 14 |
+| **#4 Lost Content** | Queue operations, auto-save drafts, cache data, cache auth token | 1, 3, 6, 7, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19 |
+| **#5 Unavailable After Recovery** | Automatic background sync with notifications | 5, 6, 8, 14, 15, 18 |
 | **#6 Redirection Without Check** | Disable navigation/actions when offline | 10, 13 |
 | **#7 Unavailable After Recovery** | Auto-reload screens when connectivity restored | 5 |
 
@@ -325,6 +351,6 @@ This document describes the eventual connectivity scenarios for the Campus Marke
 
 ---
 
-**Document Version**: 1.1
-**Last Updated**: October 28, 2025
-**Total Scenarios**: 18 (16 new + 2 already implemented)
+**Document Version**: 1.2
+**Last Updated**: October 30, 2025
+**Total Scenarios**: 19 (Wishlist: 2, User Ranking: 2, Other: 15)

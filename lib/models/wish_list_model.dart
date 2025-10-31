@@ -75,6 +75,20 @@ class WishListItem {
       'product_description': productDescription,
       'product_price': productPrice,
       'product_images': productImages,
+      'added_at': addedAt.toIso8601String(), // Convert to ISO string for Hive compatibility
+      if (notes != null) 'notes': notes,
+    };
+  }
+  
+  /// Convert to JSON for Firestore (with Timestamp)
+  Map<String, dynamic> toFirestoreJson() {
+    return {
+      'user_id': userId,
+      'product_id': productId,
+      'product_title': productTitle,
+      'product_description': productDescription,
+      'product_price': productPrice,
+      'product_images': productImages,
       'added_at': Timestamp.fromDate(addedAt),
       if (notes != null) 'notes': notes,
     };
