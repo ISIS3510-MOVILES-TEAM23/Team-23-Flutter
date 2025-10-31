@@ -1,31 +1,56 @@
 import 'package:flutter/material.dart';
-import '../models/wish_list_model.dart';
-import '../models/post_model.dart';
+
 import '../data/repositories/wish_list_repository.dart';
+import '../models/post_model.dart';
+import '../models/wish_list_model.dart';
+import '../services/connectivity_service.dart';
+import '../services/hive_service.dart';
 
 class WishListViewModel extends ChangeNotifier {
   final WishListRepository _repository;
+  final ConnectivityService _connectivityService;
 
-  WishListViewModel({WishListRepository? repository})
-      : _repository = repository ?? WishListRepository();
+  WishListViewModel({
+    WishListRepository? repository,
+    ConnectivityService? connectivityService,
+  })  : _repository = repository ?? WishListRepository(),
+        _connectivityService = connectivityService ?? ConnectivityService();
 
   List<WishListItem> _items = [];
   bool _isLoading = true;
   String? _error;
+  bool _isOffline = false;
+  DateTime? _lastSyncTime;
 
   List<WishListItem> get items => _items;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isEmpty => _items.isEmpty && !_isLoading;
+  bool get isOffline => _isOffline;
+  DateTime? get lastSyncTime => _lastSyncTime;
 
-  // Load wish list items
+  // Load wish list items with connectivity awareness
   Future<void> loadWishList() async {
     try {
+      debugPrint('🔄 [WishListVM] Starting to load wishlist...');
       _isLoading = true;
       _error = null;
+      
+      // Check connectivity
+      _isOffline = !(await _connectivityService.checkConnectivity());
+      debugPrint('🌐 [WishListVM] Offline mode: $_isOffline');
+      
       notifyListeners();
 
       _items = await _repository.getWishListItems();
+      debugPrint('✅ [WishListVM] Loaded ${_items.length} items');
+
+      // Get last sync time from cache metadata
+      final userId = _repository.getCurrentUserId();
+      if (userId != null) {
+        _lastSyncTime = HiveService.getWishlistLastSyncTime(userId);
+        debugPrint('🕒 [WishListVM] Last sync time: $_lastSyncTime');
+      }
 
       _isLoading = false;
       notifyListeners();
@@ -33,7 +58,7 @@ class WishListViewModel extends ChangeNotifier {
       _error = 'Failed to load wish list';
       _isLoading = false;
       notifyListeners();
-      debugPrint('Error loading wish list: $e');
+      debugPrint('❌ [WishListVM] Error loading wish list: $e');
     }
   }
 
@@ -51,36 +76,77 @@ class WishListViewModel extends ChangeNotifier {
     }
   }
 
-  // Remove item from wish list
+  // Remove item from wish list with optimistic UI
   Future<bool> removeFromWishList(String wishListItemId) async {
     try {
-      final success = await _repository.removeFromWishList(wishListItemId);
-      if (success) {
-        _items.removeWhere((item) => item.id == wishListItemId);
-        notifyListeners();
+      // Find the product ID before removing
+      final item = _items.firstWhere((item) => item.id == wishListItemId);
+      final productId = item.productId;
+
+      // Optimistically remove from UI
+      _items.removeWhere((item) => item.id == wishListItemId);
+      notifyListeners();
+
+      final success = await _repository.removeFromWishList(wishListItemId, productId);
+      
+      if (!success) {
+        // Revert on failure
+        await loadWishList();
       }
+      
       return success;
     } catch (e) {
       debugPrint('Error removing from wish list: $e');
+      // Reload to ensure consistency
+      await loadWishList();
       return false;
     }
   }
 
-  // Update notes for wish list item
+  // Update notes for wish list item with optimistic UI
   Future<bool> updateNotes(String wishListItemId, String notes) async {
     try {
-      final success = await _repository.updateNotes(wishListItemId, notes);
-      if (success) {
-        final index = _items.indexWhere((item) => item.id == wishListItemId);
-        if (index != -1) {
-          _items[index] = _items[index].copyWith(notes: notes);
+      // Optimistically update in UI
+      final index = _items.indexWhere((item) => item.id == wishListItemId);
+      if (index != -1) {
+        final oldNotes = _items[index].notes;
+        _items[index] = _items[index].copyWith(notes: notes);
+        notifyListeners();
+
+        final success = await _repository.updateNotes(wishListItemId, notes);
+        
+        if (!success) {
+          // Revert on failure
+          _items[index] = _items[index].copyWith(notes: oldNotes);
           notifyListeners();
         }
+        
+        return success;
       }
-      return success;
+      return false;
     } catch (e) {
       debugPrint('Error updating notes: $e');
+      // Reload to ensure consistency
+      await loadWishList();
       return false;
+    }
+  }
+
+  // Get formatted last sync time for display
+  String getLastSyncTimeText() {
+    if (_lastSyncTime == null) return 'Never synced';
+    
+    final now = DateTime.now();
+    final difference = now.difference(_lastSyncTime!);
+    
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+    } else {
+      return '${difference.inDays} ${difference.inDays == 1 ? 'day' : 'days'} ago';
     }
   }
 

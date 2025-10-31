@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/ble_service.dart';
+import '../services/connectivity_service.dart';
 import '../services/firestore_service.dart';
 import '../services/sale_polling_service.dart';
 import '../theme/app_colors.dart';
@@ -20,6 +21,7 @@ class ConfirmPurchaseScreen extends StatefulWidget {
 class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   final BleService _bleService = BleService();
   final SalePollingService _pollingService = SalePollingService();
+  final ConnectivityService _connectivityService = ConnectivityService();
   String _role = 'Buyer'; // 'Buyer' or 'Seller'
   String? _postId;
   String? _buyerId;
@@ -32,6 +34,8 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   String? _deviceName;
   bool _isCompletingPurchase = false;
   bool _purchaseCompleted = false;
+  bool _hasConnection = true;
+  StreamSubscription<bool>? _connectivitySubscription;
 
   @override
   void initState() {
@@ -39,6 +43,46 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
     _requestPermissions();
     _getDeviceName();
     _setInitialRole();
+    _initializeConnectivity();
+  }
+
+  Future<void> _initializeConnectivity() async {
+    // Check initial connectivity
+    final hasConnection = await _connectivityService.checkConnectivity();
+    if (mounted) {
+      setState(() {
+        _hasConnection = hasConnection;
+      });
+    }
+
+    // Start monitoring connectivity changes
+    _connectivityService.startMonitoring();
+    _connectivitySubscription = _connectivityService.connectionStream.listen((hasConnection) {
+      if (mounted) {
+        setState(() {
+          _hasConnection = hasConnection;
+        });
+        
+        // Show snackbar when connection changes
+        if (!hasConnection) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Internet connection lost'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Internet connection restored'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    });
   }
 
   void _setInitialRole() {
@@ -207,6 +251,20 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
   Future<void> _completePurchase() async {
     if (_saleId == null || _isCompletingPurchase) return;
 
+    // Check connectivity before attempting to complete purchase
+    if (!_hasConnection) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Internet connection required to complete transaction'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isCompletingPurchase = true;
       _statusText = 'Completing purchase...';
@@ -298,6 +356,8 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
     _bleService.stopScanning();
     _bleService.stopAdvertising(null);
     _pollingService.dispose();
+    _connectivitySubscription?.cancel();
+    _connectivityService.dispose();
     super.dispose();
   }
 
@@ -332,6 +392,40 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
           child: Column(
             children: [
               const SizedBox(height: 32),
+              // Connection status indicator
+              if (!_hasConnection) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.wifi_off,
+                        color: Colors.red,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Internet connection required to complete transaction',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (_deviceName != null) ...[
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -396,7 +490,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isAdvertising ? null : _startAdvertising,
+                          onPressed: (_isAdvertising || !_hasConnection) ? null : _startAdvertising,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
@@ -407,7 +501,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isAdvertising ? _stopAdvertising : null,
+                          onPressed: (_isAdvertising && _hasConnection) ? _stopAdvertising : null,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
@@ -461,7 +555,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isScanning ? null : _startScanning,
+                        onPressed: (_isScanning || !_hasConnection) ? null : _startScanning,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
@@ -472,7 +566,7 @@ class _ConfirmPurchaseScreenState extends State<ConfirmPurchaseScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isScanning ? _stopScanning : null,
+                        onPressed: (_isScanning && _hasConnection) ? _stopScanning : null,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
