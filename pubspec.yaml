@@ -59,6 +59,7 @@ dependencies:
   # Geolocation
   geolocator: ^13.0.0
 
+
   # Local Database & Connectivity
   hive: ^2.2.3
   hive_flutter: ^1.1.0

@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:campus_marketplace/services/auth_service.dart';
+import 'package:campus_marketplace/services/connectivity_service.dart';
 import 'package:campus_marketplace/services/firestore_service.dart';
+import 'package:campus_marketplace/services/hive_service.dart';
+import 'package:campus_marketplace/services/profile_sync_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,8 +12,6 @@ import '../models/models.dart';
 import '../view_models/profile_view_model.dart';
 import '../services/on_campus_service.dart';
 import '../services/cache_service.dart';
-import '../services/connectivity_service.dart';
-import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/majors.dart';
 import '../widgets/product_card.dart';
@@ -32,14 +34,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isOnCampus = false;
   StreamSubscription<bool>? _campusSubscription;
 
+  // Connectivity and sync services
+  late ConnectivityService _connectivityService;
+  late ProfileSyncService _profileSyncService;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySubscription;
+
   @override
   void initState() {
     super.initState();
     debugPrint('ProfileScreen initState called');
     _profileViewModel = ProfileViewModel();
+    
+    // Initialize services
     _onCampusService = OnCampusService(enableLogging: true);
+    _connectivityService = ConnectivityService();
+    _profileSyncService = ProfileSyncService(_connectivityService);
+    
     debugPrint('OnCampusService created');
     _initializeCampusStatus();
+    _initializeConnectivity();
     _loadUserData();
   }
 
@@ -83,18 +97,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _initializeConnectivity() async {
+    try {
+      debugPrint('Initializing connectivity service...');
+      
+      // Check initial connectivity
+      _isOnline = await _connectivityService.checkConnectivity();
+      debugPrint('Initial connectivity status: $_isOnline');
+      
+      // Start monitoring connectivity changes
+      _connectivityService.startMonitoring();
+      _connectivitySubscription = _connectivityService.connectionStream.listen((isOnline) {
+        debugPrint('Connectivity changed to: $isOnline');
+        setState(() {
+          _isOnline = isOnline;
+        });
+        
+        // Show notification when connection restored
+        if (isOnline && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Connection restored. Syncing profile changes...'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      });
+      
+      // Initialize profile sync service
+      _profileSyncService.initialize();
+      debugPrint('ProfileSyncService initialized');
+    } catch (e, stackTrace) {
+      debugPrint('Failed to initialize connectivity: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
+  }
+
   Future<void> _loadUserData() async {
     try {
       debugPrint('[ProfileScreen] 🔄 Loading user data...');
-      final user = await FirestoreService.getCurrentUser();
-      debugPrint('[ProfileScreen] 👤 User: ${user?.id} (${user?.name})');
-
+      
+      User? user;
       List<Post> products = [];
+      
+      // Check connectivity first
+      final isOnline = await _connectivityService.checkConnectivity();
+      debugPrint('[ProfileScreen] Connection status: ${isOnline ? "Online" : "Offline"}');
+      
+      if (isOnline) {
+        // Online: Fetch from Firestore and cache
+        try {
+          user = await FirestoreService.getCurrentUser();
+          debugPrint('[ProfileScreen] 👤 User from Firestore: ${user?.id} (${user?.name})');
+          
+          // Cache the user
+          if (user != null) {
+            await HiveService.cacheUser(user);
+            debugPrint('[ProfileScreen] 💾 Cached user data');
+          }
+        } catch (e) {
+          debugPrint('[ProfileScreen] ❌ Error loading from Firestore, trying cache: $e');
+          // Fallback to cache if Firestore fails
+          final currentUserId = AuthService().currentUser?.uid;
+          if (currentUserId != null) {
+            user = HiveService.getCachedUser(currentUserId);
+            debugPrint('[ProfileScreen] 📦 Loaded user from cache fallback');
+          }
+        }
+      } else {
+        // Offline: Load from cache
+        debugPrint('[ProfileScreen] 📴 Offline - Loading user from cache...');
+        final currentUserId = AuthService().currentUser?.uid;
+        if (currentUserId != null) {
+          user = HiveService.getCachedUser(currentUserId);
+          if (user != null) {
+            debugPrint('[ProfileScreen] ✅ Loaded user from cache: ${user.name}');
+          } else {
+            debugPrint('[ProfileScreen] ⚠️ No cached user data (open app online first)');
+          }
+        }
+      }
+
+      // Load user posts
       if (user != null) {
-        // Try to load from network first if online
-        if (ConnectivityService().isConnected) {
+        if (isOnline) {
+          // Online: Try to load from network
           try {
-            debugPrint('[ProfileScreen] 📦 Online - Fetching user posts from network...');
+            debugPrint('[ProfileScreen] 📦 Fetching user posts from network...');
             products = await FirestoreService.getUserPosts(user.id);
             debugPrint('[ProfileScreen] ✅ Got ${products.length} products from network');
 
@@ -114,8 +204,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
           }
         } else {
-          // Offline - load from cache
-          debugPrint('[ProfileScreen] 📴 Offline - Loading from cache...');
+          // Offline: Load from cache only
+          debugPrint('[ProfileScreen] 📴 Loading posts from cache...');
           final cached = await CacheService().getCachedUserPosts(user.id);
           if (cached != null) {
             products = cached.map((json) => Post.fromJson(json)).toList();
@@ -134,11 +224,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isLoading = false;
       });
       debugPrint('[ProfileScreen] ✓ State updated: ${myProducts.length} products in myProducts');
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[ProfileScreen] ❌ Error loading user data: $e');
+      debugPrint('[ProfileScreen] Stack trace: $stackTrace');
+      
+      // Try to load from cache as last resort
+      try {
+        final currentUserId = AuthService().currentUser?.uid;
+        if (currentUserId != null) {
+          final cachedUser = HiveService.getCachedUser(currentUserId);
+          if (cachedUser != null) {
+            final cached = await CacheService().getCachedUserPosts(currentUserId);
+            final products = cached?.map((json) => Post.fromJson(json)).toList() ?? [];
+            
+            setState(() {
+              currentUser = cachedUser;
+              myProducts = products;
+              isLoading = false;
+            });
+            debugPrint('💾 Loaded user and ${products.length} posts from cache');
+            return;
+          }
+        }
+      } catch (cacheError) {
+        debugPrint('❌ Cache fallback failed: $cacheError');
+      }
+      
       setState(() {
         isLoading = false;
       });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to load profile. ${!_isOnline ? "You are offline." : ""}'),
+            backgroundColor: _isOnline ? AppColors.error : Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -149,15 +272,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (currentUser == null) return;
 
     try {
-      await FirestoreService.updateUserProfile(
-        userId: currentUser!.id,
-        name: name ?? currentUser!.name,
-        email: email ?? currentUser!.email,
-        password: password,
-        major: major ?? currentUser!.major,
-      );
-      // Reload user data
-      await _loadUserData();
+      final updatedName = name ?? currentUser!.name;
+      final updatedEmail = email ?? currentUser!.email;
+      final updatedMajor = major ?? currentUser!.major;
+
+      if (_isOnline) {
+        // Online - update immediately
+        await FirestoreService.updateUserProfile(
+          userId: currentUser!.id,
+          name: updatedName,
+          email: updatedEmail,
+          password: password,
+          major: updatedMajor,
+        );
+        // Reload user data to get server state
+        await _loadUserData();
+      } else {
+        // Offline - queue for sync and update cache (optimistic UI)
+        await _profileSyncService.queueProfileUpdate(
+          userId: currentUser!.id,
+          name: updatedName,
+          email: updatedEmail,
+          major: updatedMajor ?? '',
+        );
+        
+        // Update local state immediately (optimistic UI)
+        setState(() {
+          currentUser = User(
+            id: currentUser!.id,
+            name: updatedName,
+            email: updatedEmail,
+            major: updatedMajor,
+            contactPreferences: currentUser!.contactPreferences,
+            role: currentUser!.role,
+            createdAt: currentUser!.createdAt,
+            numberOfReviews: currentUser!.numberOfReviews,
+            score: currentUser!.score,
+          );
+        });
+      }
     } catch (e) {
       throw Exception('Failed to update profile: $e');
     }
@@ -331,30 +484,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     }
                     
                     // Save changes
-                    try {
-                      _updateProfile(
-                        nameController.text,
-                        emailController.text,
-                        passwordController.text.isNotEmpty
-                            ? passwordController.text
-                            : null,
-                        selectedMajor,
-                      );
+                    _updateProfile(
+                      nameController.text,
+                      emailController.text,
+                      passwordController.text.isNotEmpty
+                          ? passwordController.text
+                          : null,
+                      selectedMajor,
+                    ).then((_) {
                       Navigator.pop(context);
+                      
+                      // Show appropriate message based on connectivity
+                      final message = _isOnline
+                          ? 'Profile updated successfully'
+                          : 'Profile changes saved. Will sync when online.';
+                      final backgroundColor = _isOnline
+                          ? AppColors.success
+                          : Colors.orange;
+                      
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Profile updated successfully'),
-                          backgroundColor: AppColors.success,
+                        SnackBar(
+                          content: Text(message),
+                          backgroundColor: backgroundColor,
+                          duration: const Duration(seconds: 3),
                         ),
                       );
-                    } catch (e) {
+                    }).catchError((e) {
+                      Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Failed to update profile: $e'),
                           backgroundColor: AppColors.error,
                         ),
                       );
-                    }
+                    });
                   },
                   child: const Text('Save'),
                 ),
@@ -371,6 +534,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _campusSubscription?.cancel();
     _onCampusService.dispose();
     _profileViewModel.dispose();
+    _connectivitySubscription?.cancel();
+    _connectivityService.dispose();
+    _profileSyncService.dispose();
     super.dispose();
   }
 
@@ -400,6 +566,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Offline indicator banner
+            if (!_isOnline)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                color: Colors.orange.shade100,
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_off, color: Colors.orange.shade700, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Offline - Changes will sync when online',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (_profileSyncService.hasPendingUpdates())
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade700,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_profileSyncService.getPendingCount()} pending',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            
             const SizedBox(height: 30),
 
             // Profile Photo, Name and Email - Centered

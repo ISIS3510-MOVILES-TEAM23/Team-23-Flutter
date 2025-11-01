@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../view_models/categories_view_model.dart';
-import '../services/connectivity_service.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -29,8 +28,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final connectivity = ConnectivityService();
-    
     return ListenableBuilder(
       listenable: viewModel,
       builder: (context, child) {

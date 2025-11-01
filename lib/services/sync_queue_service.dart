@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'local_storage_service.dart';
 import 'connectivity_service.dart';
 import 'chat_service.dart';
+import 'hive_service.dart';
+import '../models/models.dart';
 
 /// Service to manage offline operation queue and sync
 /// Implements queue-and-sync pattern for eventual consistency
@@ -13,7 +13,6 @@ class SyncQueueService {
   factory SyncQueueService() => _instance;
   SyncQueueService._internal();
 
-  final LocalStorageService _storage = LocalStorageService();
   final ConnectivityService _connectivity = ConnectivityService();
   final Uuid _uuid = const Uuid();
 
@@ -26,24 +25,20 @@ class SyncQueueService {
     required String content,
   }) async {
     final clientId = _uuid.v4();
-    final queueItem = {
-      'id': clientId,
-      'type': 'message',
-      'chatId': chatId,
-      'senderId': senderId,
-      'content': content,
-      'timestamp': DateTime.now().toIso8601String(),
-      'status': 'pending',
-      'retryCount': 0,
-      'createdAt': DateTime.now().millisecondsSinceEpoch,
-    };
-
-    await _storage.save(
-      LocalStorageService.syncQueueBoxName,
-      clientId,
-      jsonEncode(queueItem),
+    final syncItem = SyncQueueItem(
+      operationId: clientId,
+      type: 'message',
+      payload: {
+        'id': clientId,
+        'chatId': chatId,
+        'senderId': senderId,
+        'content': content,
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+      createdAt: DateTime.now(),
     );
 
+    await HiveService.addToSyncQueue(syncItem);
     debugPrint('[SyncQueue] ✓ Queued message: $clientId');
 
     // Try to sync immediately if online
@@ -57,27 +52,11 @@ class SyncQueueService {
   /// Get all pending queue items
   Future<List<Map<String, dynamic>>> getPendingItems() async {
     try {
-      final allKeys = _storage.getAllKeys(LocalStorageService.syncQueueBoxName);
-      final items = <Map<String, dynamic>>[];
-
-      for (final key in allKeys) {
-        final jsonStr = _storage.get(LocalStorageService.syncQueueBoxName, key);
-        if (jsonStr != null) {
-          final item = jsonDecode(jsonStr) as Map<String, dynamic>;
-          if (item['status'] == 'pending') {
-            items.add(item);
-          }
-        }
-      }
-
-      // Sort by timestamp
-      items.sort((a, b) {
-        final aTime = a['createdAt'] as int;
-        final bTime = b['createdAt'] as int;
-        return aTime.compareTo(bTime);
-      });
-
-      return items;
+      final items = HiveService.getSyncQueueItemsByType('message');
+      return items
+          .where((item) => item.retryCount < 3) // Not failed
+          .map((item) => item.payload)
+          .toList();
     } catch (e) {
       debugPrint('[SyncQueue] ✗ Error getting pending items: $e');
       return [];
@@ -114,39 +93,39 @@ class SyncQueueService {
   /// Sync a single item
   Future<void> _syncItem(Map<String, dynamic> item) async {
     final itemId = item['id'] as String;
-    final type = item['type'] as String;
 
     try {
-      if (type == 'message') {
-        await _syncMessage(item);
-      }
-      // Add other types here (profile_update, etc.)
+      await _syncMessage(item);
 
       // Mark as synced and remove from queue
-      await _storage.delete(LocalStorageService.syncQueueBoxName, itemId);
+      await HiveService.removeFromSyncQueue(itemId);
       debugPrint('[SyncQueue] ✓ Synced and removed: $itemId');
     } catch (e) {
-      // Increment retry count
-      final retryCount = (item['retryCount'] as int? ?? 0) + 1;
+      // Get the sync item to update retry count
+      final items = HiveService.getAllSyncQueueItems();
+      final syncItem = items.firstWhere(
+        (si) => si.operationId == itemId,
+        orElse: () => throw Exception('Item not found in queue'),
+      );
+
+      final retryCount = syncItem.retryCount + 1;
 
       if (retryCount >= 3) {
-        // Max retries reached - mark as failed
-        item['status'] = 'failed';
-        item['error'] = e.toString();
-        await _storage.save(
-          LocalStorageService.syncQueueBoxName,
-          itemId,
-          jsonEncode(item),
+        // Max retries reached - update with error
+        final updatedItem = syncItem.copyWith(
+          retryCount: retryCount,
+          lastAttemptAt: DateTime.now(),
+          errorMessage: e.toString(),
         );
+        await HiveService.updateSyncQueueItem(updatedItem);
         debugPrint('[SyncQueue] ✗ Max retries reached for: $itemId');
       } else {
         // Update retry count
-        item['retryCount'] = retryCount;
-        await _storage.save(
-          LocalStorageService.syncQueueBoxName,
-          itemId,
-          jsonEncode(item),
+        final updatedItem = syncItem.copyWith(
+          retryCount: retryCount,
+          lastAttemptAt: DateTime.now(),
         );
+        await HiveService.updateSyncQueueItem(updatedItem);
         debugPrint('[SyncQueue] ⚠️ Retry $retryCount/3 for: $itemId');
       }
 
@@ -177,11 +156,12 @@ class SyncQueueService {
 
   /// Get sync status for a queued item
   Future<String?> getItemStatus(String clientId) async {
-    final jsonStr = _storage.get(LocalStorageService.syncQueueBoxName, clientId);
-    if (jsonStr == null) return 'synced'; // Not in queue = already synced
-
-    final item = jsonDecode(jsonStr) as Map<String, dynamic>;
-    return item['status'] as String?;
+    final items = HiveService.getAllSyncQueueItems();
+    final item = items.where((i) => i.operationId == clientId).firstOrNull;
+    
+    if (item == null) return 'synced'; // Not in queue = already synced
+    if (item.retryCount >= 3) return 'failed';
+    return 'pending';
   }
 
   /// Manually trigger sync
@@ -195,20 +175,8 @@ class SyncQueueService {
   /// Get failed items count
   Future<int> getFailedItemsCount() async {
     try {
-      final allKeys = _storage.getAllKeys(LocalStorageService.syncQueueBoxName);
-      int count = 0;
-
-      for (final key in allKeys) {
-        final jsonStr = _storage.get(LocalStorageService.syncQueueBoxName, key);
-        if (jsonStr != null) {
-          final item = jsonDecode(jsonStr) as Map<String, dynamic>;
-          if (item['status'] == 'failed') {
-            count++;
-          }
-        }
-      }
-
-      return count;
+      final items = HiveService.getSyncQueueItemsByType('message');
+      return items.where((item) => item.retryCount >= 3).length;
     } catch (e) {
       return 0;
     }
@@ -217,16 +185,11 @@ class SyncQueueService {
   /// Clear all failed items
   Future<void> clearFailedItems() async {
     try {
-      final allKeys = _storage.getAllKeys(LocalStorageService.syncQueueBoxName);
-
-      for (final key in allKeys) {
-        final jsonStr = _storage.get(LocalStorageService.syncQueueBoxName, key);
-        if (jsonStr != null) {
-          final item = jsonDecode(jsonStr) as Map<String, dynamic>;
-          if (item['status'] == 'failed') {
-            await _storage.delete(LocalStorageService.syncQueueBoxName, key);
-          }
-        }
+      final items = HiveService.getSyncQueueItemsByType('message');
+      final failedItems = items.where((item) => item.retryCount >= 3);
+      
+      for (final item in failedItems) {
+        await HiveService.removeFromSyncQueue(item.operationId);
       }
 
       debugPrint('[SyncQueue] ✓ Cleared all failed items');

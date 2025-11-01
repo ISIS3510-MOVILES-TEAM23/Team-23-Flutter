@@ -15,7 +15,7 @@ class LocalStorageService {
   static const String messagesBoxName = 'messages';
   static const String categoriesBoxName = 'categories';
   static const String userBoxName = 'user';
-  static const String syncQueueBoxName = 'sync_queue';
+  static const String syncQueueBoxName = 'sync_queue'; // Managed by HiveService with typed Box<SyncQueueItem>
   static const String metadataBoxName = 'metadata';
   static const String draftsBoxName = 'drafts'; // Scenario 8
   static const String salesCacheBoxName = 'sales_cache'; // Scenario 12
@@ -25,19 +25,41 @@ class LocalStorageService {
     if (_isInitialized) return;
 
     try {
-      await Hive.initFlutter();
+      // Note: Hive.initFlutter() should only be called once
+      // Check if Hive is already initialized by HiveService
+      if (!Hive.isBoxOpen(postsBoxName)) {
+        await Hive.initFlutter();
+      }
 
-      // Open all boxes
-      await Future.wait([
-        Hive.openBox(postsBoxName),
-        Hive.openBox(messagesBoxName),
-        Hive.openBox(categoriesBoxName),
-        Hive.openBox(userBoxName),
-        Hive.openBox(syncQueueBoxName),
-        Hive.openBox(metadataBoxName),
-        Hive.openBox(draftsBoxName), // Scenario 8
-        Hive.openBox(salesCacheBoxName), // Scenario 12
-      ]);
+      // Open all boxes (excluding sync_queue which is managed by HiveService)
+      // Check if box is already open before opening
+      final boxesToOpen = <Future>[];
+      
+      if (!Hive.isBoxOpen(postsBoxName)) {
+        boxesToOpen.add(Hive.openBox(postsBoxName));
+      }
+      if (!Hive.isBoxOpen(messagesBoxName)) {
+        boxesToOpen.add(Hive.openBox(messagesBoxName));
+      }
+      if (!Hive.isBoxOpen(categoriesBoxName)) {
+        boxesToOpen.add(Hive.openBox(categoriesBoxName));
+      }
+      if (!Hive.isBoxOpen(userBoxName)) {
+        boxesToOpen.add(Hive.openBox(userBoxName));
+      }
+      if (!Hive.isBoxOpen(metadataBoxName)) {
+        boxesToOpen.add(Hive.openBox(metadataBoxName));
+      }
+      if (!Hive.isBoxOpen(draftsBoxName)) {
+        boxesToOpen.add(Hive.openBox(draftsBoxName));
+      }
+      if (!Hive.isBoxOpen(salesCacheBoxName)) {
+        boxesToOpen.add(Hive.openBox(salesCacheBoxName));
+      }
+      
+      if (boxesToOpen.isNotEmpty) {
+        await Future.wait(boxesToOpen);
+      }
 
       _isInitialized = true;
       debugPrint('[LocalStorage] ✓ Initialized all boxes successfully');
@@ -52,6 +74,13 @@ class LocalStorageService {
     if (!_isInitialized) {
       throw Exception('LocalStorageService not initialized. Call initialize() first.');
     }
+    
+    // sync_queue is managed by HiveService as a typed Box<SyncQueueItem>
+    // Don't allow access through LocalStorageService to avoid type conflicts
+    if (boxName == syncQueueBoxName) {
+      throw Exception('sync_queue box is managed by HiveService. Use HiveService methods instead.');
+    }
+    
     return Hive.box(boxName);
   }
 
@@ -162,7 +191,6 @@ class LocalStorageService {
         messagesBoxName,
         categoriesBoxName,
         userBoxName,
-        syncQueueBoxName,
         metadataBoxName,
         draftsBoxName, // Scenario 8
         salesCacheBoxName, // Scenario 12

@@ -6,8 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'firebase_options.dart';
 import 'router.dart';
-import 'services/firestore_service.dart';
 import 'services/connectivity_service.dart';
+import 'services/firestore_service.dart';
 import 'services/connectivity_provider.dart';
 import 'services/local_storage_service.dart';
 import 'services/sync_queue_service.dart';
@@ -17,9 +17,15 @@ import 'view_models/notification_view_model.dart';
 import 'widgets/notification_banner.dart';
 import 'widgets/offline_banner.dart';
 import 'theme/app_colors.dart';
+import 'services/hive_service.dart';
+import 'services/wishlist_sync_service.dart';
 
 // Tiempo de inicio para medir duración del lanzamiento
 DateTime? _appStartTime;
+
+// Global services for connectivity and sync
+ConnectivityService? _connectivityService;
+WishlistSyncService? _wishlistSyncService;
 
 void main() async {
   _appStartTime = DateTime.now();
@@ -40,6 +46,7 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
+  debugPrint('✅ Firebase initialized');
 
   // DISABLE Firebase automatic cache - we use our own Hive implementation
   // Note: Firebase requires minimum 1MB cache size, so we set it to minimum
@@ -49,9 +56,37 @@ void main() async {
     cacheSizeBytes: 1048576, // 1MB minimum (Firebase requirement)
   );
 
+  // Initialize Hive for local database
+  try {
+    await HiveService.initialize();
+    debugPrint('✅ Hive initialized successfully');
+  } catch (e) {
+    debugPrint('❌ Error initializing Hive: $e');
+    // App can continue without Hive, but offline features won't work
+  }
+
   // Initialize connectivity and local storage services
   await ConnectivityService().initialize();
   await LocalStorageService().initialize();
+
+  // Initialize connectivity and sync services in background (non-blocking)
+  Future.delayed(Duration.zero, () async {
+    try {
+      _connectivityService = ConnectivityService();
+      await _connectivityService!.checkConnectivity();
+      // Note: initialize() already starts monitoring, so we don't call startMonitoring again
+      debugPrint('✅ Connectivity service initialized');
+      
+      // Initialize wishlist sync service
+      _wishlistSyncService = WishlistSyncService(
+        connectivityService: _connectivityService,
+      );
+      _wishlistSyncService!.startMonitoring();
+      debugPrint( '✅ Wishlist sync service initialized');
+    } catch (e) {
+      debugPrint('⚠️ Error initializing background services: $e');
+    }
+  });
 
   // Start auto-sync for queued operations (Scenario 6)
   SyncQueueService().startAutoSync();
