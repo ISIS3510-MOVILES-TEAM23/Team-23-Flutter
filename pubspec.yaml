@@ -21,8 +21,9 @@ dependencies:
   # State Management
   provider: ^6.1.1
   
-  # UI Components
+  # UI Components & Image Caching
   cached_network_image: ^3.3.1
+  flutter_cache_manager: ^3.3.1
   shimmer: ^3.0.0
   
   # Image handling
@@ -38,7 +39,6 @@ dependencies:
   package_info_plus: ^8.0.0
   uuid: ^4.4.0
   device_info_plus: ^10.1.0
-  connectivity_plus: ^6.0.0
   
   # Optional: For animations
   flutter_animate: ^4.5.0
@@ -58,10 +58,12 @@ dependencies:
 
   # Geolocation
   geolocator: ^13.0.0
-  
-  # Local Database
+
+
+  # Local Database & Connectivity
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  connectivity_plus: ^6.0.5
 
 dev_dependencies:
   flutter_test:

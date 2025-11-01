@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 import 'screens/categories_screen.dart';
 import 'screens/category_products_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/confirm_purchase_screen.dart';
 import 'screens/create_post_screen.dart';
+import 'screens/drafts_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/messages_screen.dart';
@@ -23,6 +25,24 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/login',
+  redirect: (context, state) {
+    final user = firebase_auth.FirebaseAuth.instance.currentUser;
+    final isLoginRoute = state.matchedLocation == '/login';
+    final isSignupRoute = state.matchedLocation == '/signup';
+    final isVerificationRoute = state.matchedLocation == '/verification';
+
+    // If user is logged in and trying to access auth screens, redirect to home
+    if (user != null && (isLoginRoute || isSignupRoute)) {
+      return '/home';
+    }
+
+    // If user is not logged in and trying to access protected routes
+    if (user == null && !isLoginRoute && !isSignupRoute && !isVerificationRoute) {
+      return '/login';
+    }
+
+    return null; // No redirect needed
+  },
   routes: [
     GoRoute(
       path: '/login',
@@ -158,6 +178,10 @@ final router = GoRouter(
                 GoRoute(
                   path: 'sales',
                   builder: (context, state) => const SalesScreen(),
+                ),
+                GoRoute(
+                  path: 'drafts',
+                  builder: (context, state) => const DraftsScreen(),
                 ),
               ],
             ),

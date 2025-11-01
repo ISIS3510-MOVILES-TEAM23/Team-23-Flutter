@@ -94,6 +94,21 @@ class WishListItem {
     };
   }
 
+  /// toJson for caching (converts Timestamp to String)
+  Map<String, dynamic> toJsonForCache() {
+    return {
+      '_id': id,
+      'user_id': userId,
+      'product_id': productId,
+      'product_title': productTitle,
+      'product_description': productDescription,
+      'product_price': productPrice,
+      'product_images': productImages,
+      'added_at': addedAt.toIso8601String(), // ✅ String instead of Timestamp
+      if (notes != null) 'notes': notes,
+    };
+  }
+
   WishListItem copyWith({
     String? id,
     String? userId,

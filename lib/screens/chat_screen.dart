@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../services/chat_api.dart';
 import '../services/firestore_service.dart';
+import '../services/connectivity_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/offline_network_image.dart';
 import '../widgets/rating_widget.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -28,7 +30,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+
   StreamSubscription<List<ChatMessage>>? _messagesSub;
   List<ChatMessage> _messages = [];
   User? _currentUser;
@@ -39,6 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _chatId;
   final ChatApi _chat = ChatApi();
   bool _hasRated = false;
+  final ConnectivityService _connectivity = ConnectivityService();
 
   @override
   void initState() {
@@ -60,7 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Cargar información del chat
       final chatInfo = await _chat.getChatInfo(_chatId!);
-      
+
       if (mounted) {
         setState(() {
           _currentUser = chatInfo['currentUser'];
@@ -108,7 +111,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty || _chatId == null) return;
 
     _messageController.clear();
-    
+
     try {
       await _chat.sendMessage(
         chatId: _chatId!,
@@ -124,7 +127,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _showRatingDialog() {
     double selectedRating = 0;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -155,10 +158,12 @@ class _ChatScreenState extends State<ChatScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: selectedRating > 0 ? () async {
-                Navigator.of(context).pop();
-                await _submitRating(selectedRating);
-              } : null,
+              onPressed: selectedRating > 0
+                  ? () async {
+                      Navigator.of(context).pop();
+                      await _submitRating(selectedRating);
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryColor,
               ),
@@ -175,21 +180,22 @@ class _ChatScreenState extends State<ChatScreen> {
       print('❌ Cannot submit rating: _otherUser is null');
       return;
     }
-    
-    print('📝 Submitting rating: $rating for user: ${_otherUser!.id} (${_otherUser!.name})');
-    
+
+    print(
+        '📝 Submitting rating: $rating for user: ${_otherUser!.id} (${_otherUser!.name})');
+
     try {
       await FirestoreService.addUserRating(
         userId: _otherUser!.id,
         rating: rating,
       );
-      
+
       print('✅ Rating submitted successfully');
-      
+
       setState(() {
         _hasRated = true;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -235,7 +241,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Text(
               _isBuyer ? 'Seller' : 'Buyer',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
             ),
           ],
         ),
@@ -256,8 +263,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (_product!.images.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
-                        _product!.images.first,
+                      child: OfflineNetworkImage(
+                        imageUrl: _product!.images.first,
                         width: 40,
                         height: 40,
                         fit: BoxFit.cover,
@@ -275,6 +282,29 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          // Offline banner - Scenario 7
+          if (!_connectivity.isConnected)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              color: Colors.orange.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Offline - Showing cached messages. New messages will appear when online.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade900,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Información del producto
           if (_product != null)
             Container(
@@ -285,8 +315,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (_product!.images.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        _product!.images.first,
+                      child: OfflineNetworkImage(
+                        imageUrl: _product!.images.first,
                         width: 60,
                         height: 60,
                         fit: BoxFit.cover,
@@ -333,7 +363,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, index) {
                       final message = _messages[index];
                       final isMe = message.senderId == _currentUser?.id;
-                      
+
                       return _buildMessageBubble(message, isMe);
                     },
                   ),
@@ -418,7 +448,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ElevatedButton.icon(
               onPressed: () async {
                 if (_currentUser == null || _product == null) return;
-                
+
                 try {
                   final saleId = await FirestoreService.createSale(
                     postId: widget.productId,
@@ -426,7 +456,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     sellerId: _product!.userId,
                     price: _product!.price,
                   );
-                  
+
                   if (saleId != null && mounted) {
                     context.push('/confirm_purchase', extra: {
                       'role': 'buyer',
@@ -446,7 +476,8 @@ class _ChatScreenState extends State<ChatScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryColor,
                 foregroundColor: AppColors.textLight,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -467,13 +498,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageBubble(ChatMessage message, bool isMe) {
     final messageUser = isMe ? _currentUser : _otherUser;
-    
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         child: Row(
-          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment:
+              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!isMe) ...[
@@ -487,7 +519,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
             Flexible(
               child: Column(
-                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
                   // Nombre del usuario
                   Padding(
@@ -503,7 +536,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   // Burbuja del mensaje
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: isMe ? AppColors.deepNavy : Colors.grey[200],
                       borderRadius: BorderRadius.circular(20),
@@ -515,25 +549,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (message.image != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  message.image!,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      height: 200,
-                      color: Colors.grey[300],
-                      child: const Center(
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (message.content != null) const SizedBox(height: 8),
-            ],
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: OfflineNetworkImage(
+                              imageUrl: message.image!,
+                              fit: BoxFit.cover,
+                              height: 200,
+                            ),
+                          ),
+                          if (message.content != null)
+                            const SizedBox(height: 8),
+                        ],
                         if (message.content != null)
                           Text(
                             message.content!,
@@ -542,12 +568,35 @@ class _ChatScreenState extends State<ChatScreen> {
                             ),
                           ),
                         const SizedBox(height: 4),
-                        Text(
-                          _formatTime(message.sentAt),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isMe ? Colors.white70 : Colors.black54,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _formatTime(message.sentAt),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                            // Show clock icon for pending messages
+                            if (isMe && message.isPending) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ],
+                            // Show checkmark for sent messages
+                            if (isMe && !message.isPending) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.check,
+                                size: 12,
+                                color: isMe ? Colors.white70 : Colors.black54,
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -573,7 +622,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String _formatTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+
     if (difference.inDays > 0) {
       return '${dateTime.day}/${dateTime.month}';
     } else {

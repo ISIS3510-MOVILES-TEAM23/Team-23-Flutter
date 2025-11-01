@@ -48,6 +48,32 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                             Theme.of(context).appBarTheme.backgroundColor,
                       ),
 
+                      // Scenario 11: Offline banner when loaded from cache
+                      if (viewModel.isLoadedFromCache)
+                        SliverToBoxAdapter(
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            color: Colors.orange.shade100,
+                            child: Row(
+                              children: [
+                                Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Offline - Showing cached categories.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange.shade900,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
                       // Categories title
                       const SliverToBoxAdapter(
                         child: Padding(

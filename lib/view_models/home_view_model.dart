@@ -4,10 +4,19 @@ import '../data/repositories/post_repository.dart';
 import '../services/recommendation_service.dart';
 import '../services/major_recommendations_service.dart';
 import '../services/nearby_products_service.dart';
+import '../services/connectivity_service.dart';
+import '../services/cache_service.dart';
+import '../services/image_cache_service.dart';
 
 class HomeViewModel extends ChangeNotifier {
   final PostRepository _postRepository;
   final NearbyProductsService _nearbyService;
+  final ConnectivityService _connectivity = ConnectivityService();
+  final CacheService _cache = CacheService();
+  final ImageCacheService _imageCache = ImageCacheService();
+
+  // Expose connectivity for listeners (Scenario 5)
+  ConnectivityService get connectivity => _connectivity;
 
   HomeViewModel({
     PostRepository? postRepository,
@@ -19,6 +28,9 @@ class HomeViewModel extends ChangeNotifier {
   List<Post> newProducts = [];
   List<Post> filteredNewProducts = [];
   bool isLoading = true;
+  bool isOffline = false;
+  bool isLoadingFromCache = false;
+  String? cacheAge;
   String? _lastSearchQuery;
 
   bool get hasSearchQuery => (_lastSearchQuery?.isNotEmpty ?? false);
@@ -40,52 +52,227 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> loadProducts() async {
     try {
       isLoading = true;
+      isOffline = !_connectivity.isConnected;
+
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('[Home] 🔍 START loadProducts');
+      debugPrint('[Home] 📶 isOffline: $isOffline');
+      debugPrint('[Home] 🌐 connectivity status: ${_connectivity.currentStatus}');
+
       notifyListeners();
 
-      final newProds = await _postRepository.getNewPosts();
+      // Scenario 3 & 4: Try network first, fallback to cache
+      if (_connectivity.isConnected) {
+        // Online - fetch from network with timeout
+        debugPrint('[Home] ✅ ONLINE - Fetching from network...');
+        try {
+          final newProds = await _postRepository.getNewPosts()
+              .timeout(const Duration(seconds: 8));
 
-      newProducts = newProds;
-      filteredNewProducts = List<Post>.from(newProds);
-      
+          debugPrint('[Home] 📥 Received ${newProds.length} products from network');
+
+          // Si Firestore devuelve 0 posts, usar cache
+          if (newProds.isEmpty) {
+            debugPrint('[Home] ⚠️ Network returned 0 posts, using cache...');
+            await _loadFromCache();
+          } else {
+            // Cache the results
+            debugPrint('[Home] 💾 Caching ${newProds.length} products to Hive...');
+            await _cache.cachePosts(newProds.map((p) => p.toJson()).toList());
+            debugPrint('[Home] ✅ Cache saved successfully');
+
+            newProducts = newProds;
+            filteredNewProducts = List<Post>.from(newProds);
+            isLoadingFromCache = false;
+            cacheAge = null;
+
+            debugPrint('[Home] ✓ Loaded ${newProds.length} products from network');
+          }
+        } catch (e) {
+          debugPrint('[Home] ❌ Network fetch failed: $e');
+          debugPrint('[Home] 🔄 Trying cache fallback...');
+          await _loadFromCache();
+        }
+      } else {
+        // Offline - load from cache (Scenario 3)
+        debugPrint('[Home] 📴 OFFLINE - Loading from cache');
+        await _loadFromCache();
+      }
+
       // Cargar productos basados en major
+      debugPrint('[Home] 🎓 Loading major-based products...');
       await loadMajorBasedProducts();
-      
+
+      // Cache major-based products when online
+      if (_connectivity.isConnected && majorBasedProducts.isNotEmpty) {
+        await _cache.cacheMajorBasedProducts(
+          majorBasedProducts.map((p) => p.toJson()).toList(),
+        );
+      }
+
       isLoading = false;
       notifyListeners();
+
+      debugPrint('[Home] 🏁 END loadProducts - Final count: ${newProducts.length}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (e) {
       isLoading = false;
       notifyListeners();
+      debugPrint('[Home] ✗ FATAL ERROR loading products: $e');
       rethrow;
+    }
+  }
+
+  Future<void> _loadFromCache() async {
+    debugPrint('[Cache] 🔍 Checking Hive for cached posts...');
+
+    // Combine all cached products: newPosts + recommended + major-based
+    final cachedNewPosts = await _cache.getCachedPosts();
+    final cachedRecommended = await _cache.getCachedRecommendedProducts();
+    final cachedMajorBased = await _cache.getCachedMajorBasedProducts();
+
+    debugPrint('[Cache] 📦 New posts: ${cachedNewPosts?.length ?? 0}');
+    debugPrint('[Cache] 📦 Recommended: ${cachedRecommended?.length ?? 0}');
+    debugPrint('[Cache] 📦 Major-based: ${cachedMajorBased?.length ?? 0}');
+
+    // Combine all cached posts (avoiding duplicates by ID)
+    final Map<String, Post> combinedPosts = {};
+
+    if (cachedNewPosts != null) {
+      for (final json in cachedNewPosts) {
+        try {
+          final post = Post.fromJson(json);
+          combinedPosts[post.id] = post;
+        } catch (e) {
+          debugPrint('[Cache] ❌ Error parsing cached post: $e');
+        }
+      }
+    }
+
+    if (cachedRecommended != null) {
+      for (final json in cachedRecommended) {
+        try {
+          final post = Post.fromJson(json);
+          if (!combinedPosts.containsKey(post.id)) {
+            combinedPosts[post.id] = post;
+          }
+        } catch (e) {
+          debugPrint('[Cache] ❌ Error parsing recommended post: $e');
+        }
+      }
+    }
+
+    if (cachedMajorBased != null) {
+      for (final json in cachedMajorBased) {
+        try {
+          final post = Post.fromJson(json);
+          if (!combinedPosts.containsKey(post.id)) {
+            combinedPosts[post.id] = post;
+          }
+        } catch (e) {
+          debugPrint('[Cache] ❌ Error parsing major-based post: $e');
+        }
+      }
+    }
+
+    if (combinedPosts.isNotEmpty) {
+      // Scenario 3: Load combined cache
+      debugPrint('[Cache] ✅ Found ${combinedPosts.length} total cached posts');
+
+      // Filter: Only show posts with cached images (offline rule)
+      final postsWithCachedImages = <Post>[];
+      for (final post in combinedPosts.values) {
+        if (post.images.isNotEmpty) {
+          final isImageCached = await _imageCache.isImageCached(post.images.first);
+          if (isImageCached) {
+            postsWithCachedImages.add(post);
+          }
+        }
+      }
+
+      debugPrint('[Cache] 🖼️  Filtered to ${postsWithCachedImages.length}/${combinedPosts.length} posts with cached images');
+
+      newProducts = postsWithCachedImages;
+      filteredNewProducts = List<Post>.from(newProducts);
+      isLoadingFromCache = true;
+      cacheAge = _cache.getCacheAge('posts', 'all_posts');
+
+      debugPrint('[Cache] ✓ Successfully loaded ${newProducts.length} products from cache');
+      debugPrint('[Cache] ⏰ Cache age: $cacheAge');
+    } else {
+      // Scenario 4: No cache available (first time offline)
+      newProducts = [];
+      filteredNewProducts = [];
+      isLoadingFromCache = false;
+      cacheAge = null;
+
+      debugPrint('[Cache] ⚠️ No cached products available (first time offline)');
+      debugPrint('[Cache] 💡 Tip: Open app with internet first to populate cache');
     }
   }
   
   // Load products viewed by people with the same major
-  Future<void> loadMajorBasedProducts({int limit = 4, int windowDays = 30}) async {
+  Future<void> loadMajorBasedProducts({
+    int limit = 4, 
+    int windowDays = 30,
+    bool forceRefresh = false, // New parameter for pull-to-refresh
+  }) async {
     isLoadingMajorBased = true;
     notifyListeners();
     try {
-      // Get current user's major
-      final userMajor = await _majorRecService.getCurrentUserMajor();
-      
-      majorBasedProducts = await _majorRecService.getPostsByMajor(
-        limit: limit,
-        windowDays: windowDays,
-        debug: true,
-      );
-      
-      // Determine dynamic title based on major and if there are products
-      if (userMajor != null && userMajor.isNotEmpty) {
-        // Shorten major if too long (keep in Spanish as requested)
-        final shortMajor = userMajor.length > 30 ? '${userMajor.substring(0, 30)}...' : userMajor;
-        majorBasedTitle = 'Popular in $shortMajor';
-      } else if (majorBasedProducts.isNotEmpty) {
-        majorBasedTitle = 'Featured';
+      if (_connectivity.isConnected) {
+        // Online - fetch from network
+        final userMajor = await _majorRecService.getCurrentUserMajor();
+
+        majorBasedProducts = await _majorRecService.getPostsByMajor(
+          limit: limit,
+          windowDays: windowDays,
+          debug: true,
+          forceRefresh: forceRefresh, // Pass to service
+        );
+
+        // Cache major-based products
+        if (majorBasedProducts.isNotEmpty) {
+          await _cache.cacheMajorBasedProducts(
+            majorBasedProducts.map((p) => p.toJson()).toList(),
+          );
+        }
+
+        // Determine dynamic title based on major
+        if (userMajor != null && userMajor.isNotEmpty) {
+          final shortMajor = userMajor.length > 30 ? '${userMajor.substring(0, 30)}...' : userMajor;
+          majorBasedTitle = 'Popular in $shortMajor';
+        } else if (majorBasedProducts.isNotEmpty) {
+          majorBasedTitle = 'Featured';
+        } else {
+          majorBasedTitle = 'Featured';
+        }
       } else {
-        majorBasedTitle = 'Featured';
+        // Offline - load from cache
+        debugPrint('[Home] 📴 Loading major-based products from cache...');
+        final cached = await _cache.getCachedMajorBasedProducts();
+
+        if (cached != null && cached.isNotEmpty) {
+          majorBasedProducts = cached
+              .map((json) => Post.fromJson(json))
+              .toList();
+          majorBasedTitle = 'Featured';
+          debugPrint('[Home] ✓ Loaded ${majorBasedProducts.length} major-based products from cache');
+        } else {
+          majorBasedProducts = [];
+          majorBasedTitle = 'Featured';
+          debugPrint('[Home] ⚠️ No cached major-based products');
+        }
       }
     } catch (e) {
-      print('Error loading major-based products: $e');
-      majorBasedProducts = [];
+      // Try cache fallback on error
+      debugPrint('[Home] ❌ Error loading major-based products, trying cache: $e');
+      final cached = await _cache.getCachedMajorBasedProducts();
+      if (cached != null) {
+        majorBasedProducts = cached.map((json) => Post.fromJson(json)).toList();
+      } else {
+        majorBasedProducts = [];
+      }
       majorBasedTitle = 'Featured';
     } finally {
       isLoadingMajorBased = false;
@@ -94,14 +281,53 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   // Cargar recomendaciones basadas en product_search_events
-  Future<void> loadRecommendations({int limit = 5, int windowDays = 30}) async {
+  Future<void> loadRecommendations({
+    int limit = 5, 
+    int windowDays = 30,
+    bool forceRefresh = false, // New parameter for pull-to-refresh
+  }) async {
     isLoadingRecommendations = true;
     notifyListeners();
     try {
-      recommendedProducts = await _recService.fetchRecommendations(
-        limit: limit,
-        windowDays: windowDays,
-      );
+      if (_connectivity.isConnected) {
+        // Online - fetch from network
+        recommendedProducts = await _recService.fetchRecommendations(
+          limit: limit,
+          windowDays: windowDays,
+          debug: true, // Enable debug to see LRU hits/misses
+          forceRefresh: forceRefresh, // Pass to service
+        );
+
+        // Cache recommended products
+        if (recommendedProducts.isNotEmpty) {
+          await _cache.cacheRecommendedProducts(
+            recommendedProducts.map((p) => p.toJson()).toList(),
+          );
+        }
+      } else {
+        // Offline - load from cache
+        debugPrint('[Home] 📴 Loading recommended products from cache...');
+        final cached = await _cache.getCachedRecommendedProducts();
+
+        if (cached != null && cached.isNotEmpty) {
+          recommendedProducts = cached
+              .map((json) => Post.fromJson(json))
+              .toList();
+          debugPrint('[Home] ✓ Loaded ${recommendedProducts.length} recommended products from cache');
+        } else {
+          recommendedProducts = [];
+          debugPrint('[Home] ⚠️ No cached recommended products');
+        }
+      }
+    } catch (e) {
+      // Try cache fallback on error
+      debugPrint('[Home] ❌ Error loading recommendations, trying cache: $e');
+      final cached = await _cache.getCachedRecommendedProducts();
+      if (cached != null) {
+        recommendedProducts = cached.map((json) => Post.fromJson(json)).toList();
+      } else {
+        recommendedProducts = [];
+      }
     } finally {
       isLoadingRecommendations = false;
       notifyListeners();

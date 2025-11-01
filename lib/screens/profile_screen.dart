@@ -9,7 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/models.dart';
+import '../view_models/profile_view_model.dart';
 import '../services/on_campus_service.dart';
+import '../services/cache_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/majors.dart';
 import '../widgets/product_card.dart';
@@ -25,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   User? currentUser;
   List<Post> myProducts = [];
   bool isLoading = true;
+  late ProfileViewModel _profileViewModel;
 
   // Campus status
   late OnCampusService _onCampusService;
@@ -41,6 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     debugPrint('ProfileScreen initState called');
+    _profileViewModel = ProfileViewModel();
     
     // Initialize services
     _onCampusService = OnCampusService(enableLogging: true);
@@ -132,63 +136,136 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final currentUserId = AuthService().currentUser?.uid;
+      debugPrint('[ProfileScreen] 🔄 Loading user data...');
       
-      // Try to load from cache first (optimistic UI)
-      if (currentUserId != null) {
-        final cachedUser = HiveService.getCachedUser(currentUserId);
-        
-        if (cachedUser != null) {
-          setState(() {
-            currentUser = cachedUser;
-          });
-          debugPrint('💾 Loaded user from cache: ${cachedUser.name}');
+      User? user;
+      List<Post> products = [];
+      
+      // Check connectivity first
+      final isOnline = await _connectivityService.checkConnectivity();
+      debugPrint('[ProfileScreen] Connection status: ${isOnline ? "Online" : "Offline"}');
+      
+      if (isOnline) {
+        // Online: Fetch from Firestore and cache
+        try {
+          user = await FirestoreService.getCurrentUser();
+          debugPrint('[ProfileScreen] 👤 User from Firestore: ${user?.id} (${user?.name})');
+          
+          // Cache the user
+          if (user != null) {
+            await HiveService.cacheUser(user);
+            debugPrint('[ProfileScreen] 💾 Cached user data');
+          }
+        } catch (e) {
+          debugPrint('[ProfileScreen] ❌ Error loading from Firestore, trying cache: $e');
+          // Fallback to cache if Firestore fails
+          final currentUserId = AuthService().currentUser?.uid;
+          if (currentUserId != null) {
+            user = HiveService.getCachedUser(currentUserId);
+            debugPrint('[ProfileScreen] 📦 Loaded user from cache fallback');
+          }
+        }
+      } else {
+        // Offline: Load from cache
+        debugPrint('[ProfileScreen] 📴 Offline - Loading user from cache...');
+        final currentUserId = AuthService().currentUser?.uid;
+        if (currentUserId != null) {
+          user = HiveService.getCachedUser(currentUserId);
+          if (user != null) {
+            debugPrint('[ProfileScreen] ✅ Loaded user from cache: ${user.name}');
+          } else {
+            debugPrint('[ProfileScreen] ⚠️ No cached user data (open app online first)');
+          }
         }
       }
 
-      // Then try to fetch from network if online
-      if (_isOnline) {
-        final user = await FirestoreService.getCurrentUser();
-        List<Post> products = [];
-        if (user != null) {
-          products = await FirestoreService.getUserPosts(user.id);
-          // Update cache
-          await HiveService.cacheUser(user);
+      // Load user posts
+      if (user != null) {
+        if (isOnline) {
+          // Online: Try to load from network
+          try {
+            debugPrint('[ProfileScreen] 📦 Fetching user posts from network...');
+            products = await FirestoreService.getUserPosts(user.id);
+            debugPrint('[ProfileScreen] ✅ Got ${products.length} products from network');
+
+            // Cache the posts
+            await CacheService().cacheUserPosts(
+              user.id,
+              products.map((p) => p.toJson()).toList(),
+            );
+            debugPrint('[ProfileScreen] 💾 Cached ${products.length} user posts');
+          } catch (e) {
+            debugPrint('[ProfileScreen] ❌ Network failed, trying cache: $e');
+            // Fallback to cache
+            final cached = await CacheService().getCachedUserPosts(user.id);
+            if (cached != null) {
+              products = cached.map((json) => Post.fromJson(json)).toList();
+              debugPrint('[ProfileScreen] 📦 Loaded ${products.length} products from cache');
+            }
+          }
+        } else {
+          // Offline: Load from cache only
+          debugPrint('[ProfileScreen] 📴 Loading posts from cache...');
+          final cached = await CacheService().getCachedUserPosts(user.id);
+          if (cached != null) {
+            products = cached.map((json) => Post.fromJson(json)).toList();
+            debugPrint('[ProfileScreen] ✅ Loaded ${products.length} products from cache');
+          } else {
+            debugPrint('[ProfileScreen] ⚠️ No cached user posts (open app online first)');
+          }
         }
-        setState(() {
-          currentUser = user;
-          myProducts = products;
-          isLoading = false;
-        });
       } else {
-        // Offline - use cached data
-        setState(() {
-          isLoading = false;
-        });
-        if (currentUser == null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Offline - Unable to load profile'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
+        debugPrint('[ProfileScreen] ⚠️ No user found');
       }
-    } catch (e) {
-      debugPrint('❌ Error loading user data: $e');
+
+      setState(() {
+        currentUser = user;
+        myProducts = products;
+        isLoading = false;
+      });
+      debugPrint('[ProfileScreen] ✓ State updated: ${myProducts.length} products in myProducts');
+    } catch (e, stackTrace) {
+      debugPrint('[ProfileScreen] ❌ Error loading user data: $e');
+      debugPrint('[ProfileScreen] Stack trace: $stackTrace');
+      
+      // Try to load from cache as last resort
+      try {
+        final currentUserId = AuthService().currentUser?.uid;
+        if (currentUserId != null) {
+          final cachedUser = HiveService.getCachedUser(currentUserId);
+          if (cachedUser != null) {
+            final cached = await CacheService().getCachedUserPosts(currentUserId);
+            final products = cached?.map((json) => Post.fromJson(json)).toList() ?? [];
+            
+            setState(() {
+              currentUser = cachedUser;
+              myProducts = products;
+              isLoading = false;
+            });
+            debugPrint('💾 Loaded user and ${products.length} posts from cache');
+            return;
+          }
+        }
+      } catch (cacheError) {
+        debugPrint('❌ Cache fallback failed: $cacheError');
+      }
+      
       setState(() {
         isLoading = false;
       });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading profile: $e'),
-            backgroundColor: AppColors.error,
+            content: Text('Unable to load profile. ${!_isOnline ? "You are offline." : ""}'),
+            backgroundColor: _isOnline ? AppColors.error : Colors.orange,
           ),
         );
       }
     }
   }
+
+  // Removed duplicate - using _signOut() instead
 
   Future<void> _updateProfile(
       String? name, String? email, String? password, String? major) async {
@@ -236,6 +313,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       throw Exception('Failed to update profile: $e');
+    }
+  }
+
+  void _showSettingsMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
+                  'Sign Out',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () async {
+                  Navigator.pop(context); // Close bottom sheet
+                  await _signOut();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _signOut() async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Sign Out'),
+          content: const Text('Are you sure you want to sign out?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text('Sign Out'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        // Sign out using AuthService
+        await AuthService().signOut();
+
+        // Navigate to login
+        if (mounted) {
+          context.go('/login');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
     }
   }
 
@@ -388,6 +533,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _campusSubscription?.cancel();
     _onCampusService.dispose();
+    _profileViewModel.dispose();
     _connectivitySubscription?.cancel();
     _connectivityService.dispose();
     _profileSyncService.dispose();
@@ -411,7 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              // Settings
+              _showSettingsMenu(context);
             },
           ),
         ],
@@ -663,7 +809,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 12),
+
+            // Drafts Button - Full Width (Scenario 8)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    context.push('/profile/drafts');
+                  },
+                  icon: const Icon(Icons.drafts_outlined, size: 20),
+                  label: const Text(
+                    'Drafts',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.borderColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
 
             // My Products Section
             const Padding(

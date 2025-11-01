@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
 import '../view_models/wish_list_view_model.dart';
+import '../widgets/offline_network_image.dart';
 
 class WishListScreen extends StatefulWidget {
   const WishListScreen({super.key});
@@ -228,7 +229,8 @@ class _WishListScreenState extends State<WishListScreen> {
                           // Items list
                           Expanded(
                             child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
                               itemCount: viewModel.items.length,
                               itemBuilder: (context, index) {
                                 final item = viewModel.items[index];
@@ -295,36 +297,31 @@ class _WishListScreenState extends State<WishListScreen> {
                                   },
                                   child: InkWell(
                                     onTap: () {
-                                      context.go('/home/product/${item.productId}');
+                                      context.go(
+                                          '/home/product/${item.productId}');
                                     },
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 12),
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context).cardTheme.color,
+                                        color:
+                                            Theme.of(context).cardTheme.color,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Row(
                                         children: [
                                           // Image
                                           ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
                                             child: SizedBox(
                                               width: 80,
                                               height: 80,
-                                              child: Image.network(
-                                                imageUrl,
+                                              child: OfflineNetworkImage(
+                                                imageUrl: imageUrl,
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (context, error, stackTrace) {
-                                                  return Container(
-                                                    color: Colors.grey.withOpacity(0.1),
-                                                    child: Icon(
-                                                      Icons.image_outlined,
-                                                      size: 32,
-                                                      color: AppColors.textSecondary.withOpacity(0.3),
-                                                    ),
-                                                  );
-                                                },
+                                                width: 80,
+                                                height: 80,
                                               ),
                                             ),
                                           ),
@@ -332,7 +329,8 @@ class _WishListScreenState extends State<WishListScreen> {
                                           // Content
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   item.productTitle,
@@ -341,34 +339,44 @@ class _WishListScreenState extends State<WishListScreen> {
                                                     fontWeight: FontWeight.w600,
                                                   ),
                                                   maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
                                                   item.productDescription,
                                                   style: TextStyle(
                                                     fontSize: 14,
-                                                    color: AppColors.textPrimary.withOpacity(0.7),
+                                                    color: AppColors.textPrimary
+                                                        .withOpacity(0.7),
                                                   ),
                                                   maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Row(
                                                   children: [
                                                     Text(
-                                                      viewModel.formatPrice(item.productPrice),
+                                                      viewModel.formatPrice(
+                                                          item.productPrice),
                                                       style: const TextStyle(
                                                         fontSize: 16,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: AppColors.primaryColor,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: AppColors
+                                                            .primaryColor,
                                                       ),
                                                     ),
                                                     const Spacer(),
-                                                    if (item.notes != null && item.notes!.isNotEmpty)
+                                                    if (item.notes != null &&
+                                                        item.notes!.isNotEmpty)
                                                       IconButton(
-                                                        icon: const Icon(Icons.note, size: 20),
-                                                        onPressed: () => _showNotesDialog(
+                                                        icon: const Icon(
+                                                            Icons.note,
+                                                            size: 20),
+                                                        onPressed: () =>
+                                                            _showNotesDialog(
                                                           item.id,
                                                           item.notes ?? '',
                                                         ),
@@ -376,16 +384,23 @@ class _WishListScreenState extends State<WishListScreen> {
                                                       )
                                                     else
                                                       IconButton(
-                                                        icon: const Icon(Icons.note_add_outlined, size: 20),
-                                                        onPressed: () => _showNotesDialog(
+                                                        icon: const Icon(
+                                                            Icons
+                                                                .note_add_outlined,
+                                                            size: 20),
+                                                        onPressed: () =>
+                                                            _showNotesDialog(
                                                           item.id,
                                                           item.notes ?? '',
                                                         ),
                                                         tooltip: 'Add notes',
                                                       ),
                                                     IconButton(
-                                                      icon: const Icon(Icons.delete_outline, size: 20),
-                                                      onPressed: () => _showDeleteConfirmation(
+                                                      icon: const Icon(
+                                                          Icons.delete_outline,
+                                                          size: 20),
+                                                      onPressed: () =>
+                                                          _showDeleteConfirmation(
                                                         item.id,
                                                         item.productTitle,
                                                       ),

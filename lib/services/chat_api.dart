@@ -26,6 +26,20 @@ class ChatApi {
     }
   }
 
+  /// Get existing product chat without creating one (Scenario 10)
+  Future<String?> getExistingProductChat(String productId, String sellerId) async {
+    final t0 = DateTime.now();
+    _log('getExistingProductChat(productId=$productId, sellerId=$sellerId)');
+    try {
+      final r = await ChatService.getExistingProductChat(productId, sellerId);
+      _log('getExistingProductChat -> ${r ?? "null"} in ${DateTime.now().difference(t0).inMilliseconds}ms');
+      return r;
+    } catch (e, s) {
+      _log('getExistingProductChat ERROR: $e\n$s');
+      return null;
+    }
+  }
+
   Stream<List<ProductChat>> streamUserChats() {
     _log('streamUserChats()');
     final t0 = DateTime.now();

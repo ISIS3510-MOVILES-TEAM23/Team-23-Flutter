@@ -2,16 +2,23 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'firebase_options.dart';
 import 'router.dart';
 import 'services/connectivity_service.dart';
 import 'services/firestore_service.dart';
-import 'services/hive_service.dart';
-import 'services/wishlist_sync_service.dart';
-import 'theme/app_colors.dart';
+import 'services/connectivity_provider.dart';
+import 'services/local_storage_service.dart';
+import 'services/sync_queue_service.dart';
+import 'services/prefetch_service.dart';
+import 'services/draft_upload_service.dart';
 import 'view_models/notification_view_model.dart';
 import 'widgets/notification_banner.dart';
+import 'widgets/offline_banner.dart';
+import 'theme/app_colors.dart';
+import 'services/hive_service.dart';
+import 'services/wishlist_sync_service.dart';
 
 // Tiempo de inicio para medir duración del lanzamiento
 DateTime? _appStartTime;
@@ -33,13 +40,21 @@ void main() async {
     // Continuar sin .env (las features de IA no funcionarán)
   }
 
-  // Initialize Firebase first (required for sync operations)
+  // Initialize Firebase
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
   debugPrint('✅ Firebase initialized');
+
+  // DISABLE Firebase automatic cache - we use our own Hive implementation
+  // Note: Firebase requires minimum 1MB cache size, so we set it to minimum
+  // but keep persistenceEnabled=false to avoid automatic caching behavior
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: false, // ❌ Disabled - using manual Hive cache
+    cacheSizeBytes: 1048576, // 1MB minimum (Firebase requirement)
+  );
 
   // Initialize Hive for local database
   try {
@@ -50,12 +65,16 @@ void main() async {
     // App can continue without Hive, but offline features won't work
   }
 
+  // Initialize connectivity and local storage services
+  await ConnectivityService().initialize();
+  await LocalStorageService().initialize();
+
   // Initialize connectivity and sync services in background (non-blocking)
   Future.delayed(Duration.zero, () async {
     try {
       _connectivityService = ConnectivityService();
       await _connectivityService!.checkConnectivity();
-      _connectivityService!.startMonitoring();
+      // Note: initialize() already starts monitoring, so we don't call startMonitoring again
       debugPrint('✅ Connectivity service initialized');
       
       // Initialize wishlist sync service
@@ -63,16 +82,27 @@ void main() async {
         connectivityService: _connectivityService,
       );
       _wishlistSyncService!.startMonitoring();
-      debugPrint('✅ Wishlist sync service initialized');
+      debugPrint( '✅ Wishlist sync service initialized');
     } catch (e) {
       debugPrint('⚠️ Error initializing background services: $e');
     }
   });
+
+  // Start auto-sync for queued operations (Scenario 6)
+  SyncQueueService().startAutoSync();
+
+  // Initialize draft upload service (Scenario 8)
+  // This will automatically process pending drafts when connectivity is restored
+  DraftUploadService();
+
+  debugPrint('🚀 App initialized with manual caching (Firebase auto-cache DISABLED)');
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => NotificationViewModel()),
+        ChangeNotifierProvider(create: (context) => ConnectivityProvider()),
       ],
       child: const MyApp(),
     ),
@@ -107,6 +137,7 @@ class _MyAppState extends State<MyApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _logAppStartTime();
       _checkNotifications();
+      _startBackgroundPrefetch();
     });
   }
 
@@ -117,6 +148,21 @@ class _MyAppState extends State<MyApp> {
       await viewModel.loadNotifications();
     } catch (e) {
       debugPrint('❌ Error checking notifications: $e');
+    }
+  }
+
+  /// Start background prefetch of all data for offline support
+  Future<void> _startBackgroundPrefetch() async {
+    try {
+      debugPrint('🚀 [App] Starting background prefetch...');
+      // Run prefetch in background without blocking UI
+      PrefetchService().prefetchAll().then((_) {
+        debugPrint('✅ [App] Background prefetch completed');
+      }).catchError((e) {
+        debugPrint('❌ [App] Background prefetch failed: $e');
+      });
+    } catch (e) {
+      debugPrint('❌ [App] Error starting prefetch: $e');
     }
   }
 
@@ -140,8 +186,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ThemeProvider, NotificationViewModel>(
-      builder: (context, themeProvider, notificationViewModel, child) {
+    return Consumer3<ThemeProvider, NotificationViewModel, ConnectivityProvider>(
+      builder: (context, themeProvider, notificationViewModel, connectivityProvider, child) {
         return MaterialApp.router(
           title: 'Campus Marketplace',
           theme: AppTheme.lightTheme,
@@ -150,9 +196,22 @@ class _MyAppState extends State<MyApp> {
           routerConfig: router,
           debugShowCheckedModeBanner: false,
           builder: (context, child) {
-            return NotificationBannerContainer(
-              viewModel: notificationViewModel,
-              child: child ?? const SizedBox.shrink(),
+            return Column(
+              children: [
+                // Global offline banner with cache age
+                if (connectivityProvider.isOffline)
+                  OfflineBanner(
+                    cacheAge: connectivityProvider.cacheAge,
+                    onRetry: () => connectivityProvider.refresh(),
+                  ),
+                // Notification banner and app content
+                Expanded(
+                  child: NotificationBannerContainer(
+                    viewModel: notificationViewModel,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ],
             );
           },
         );

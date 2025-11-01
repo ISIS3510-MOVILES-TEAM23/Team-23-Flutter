@@ -1,11 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:flutter/foundation.dart';
 import '../models/models.dart';
+import 'lru_cache_service.dart';
 
 /// Servicio para obtener recomendaciones basadas en vistas de usuarios con el mismo major
 class MajorRecommendationsService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
+
+  // LRU Cache for major-based recommendation results
+  // Key: userId, Value: List<Post>
+  final LruCacheService<String, List<Post>> _majorRecommendationCache = LruCacheService(
+    maxCapacity: 50, // Cache major-based recommendations for 50 users
+  );
 
   /// Obtiene el major del usuario actual
   Future<String?> getCurrentUserMajor() async {
@@ -25,16 +33,35 @@ class MajorRecommendationsService {
 
   /// Obtiene posts más vistos por usuarios con el mismo major que el usuario actual
   /// Si no hay usuarios con el mismo major, usa todos los usuarios
+  /// OPTIMIZED VERSION with LRU Cache
   Future<List<Post>> getPostsByMajor({
     int limit = 4,
     int windowDays = 30,
     bool debug = false,
+    bool forceRefresh = false, // New parameter to bypass cache
   }) async {
     try {
+      final stopwatch = Stopwatch()..start();
       final currentUserId = _auth.currentUser?.uid;
       if (currentUserId == null) {
         if (debug) print('🎓 [MajorRecs] No hay usuario autenticado');
         return [];
+      }
+
+      // Try LRU cache first (unless force refresh)
+      if (!forceRefresh) {
+        final cached = _majorRecommendationCache.get(currentUserId);
+        if (cached != null) {
+          stopwatch.stop();
+          if (debug) {
+            print('🎓 [MajorRecs] ✅ LRU CACHE HIT - Returning ${cached.length} cached major-based recommendations (${stopwatch.elapsedMilliseconds}ms)');
+            print('🎓 [MajorRecs] 📊 LRU Hit Rate: ${_majorRecommendationCache.hitRate.toStringAsFixed(2)}%');
+          }
+          return cached;
+        }
+        if (debug) print('🎓 [MajorRecs] ❌ LRU CACHE MISS - Computing major-based recommendations...');
+      } else {
+        if (debug) print('🎓 [MajorRecs] 🔄 FORCE REFRESH - Bypassing cache...');
       }
 
       // 1. Obtener el major del usuario actual
@@ -46,21 +73,22 @@ class MajorRecommendationsService {
 
       final currentUserData = currentUserDoc.data()!;
       final currentMajor = currentUserData['major'] as String?;
-      
-      if (debug) print('🎓 [MajorRecs] Usuario actual: $currentUserId, Major: $currentMajor');
+
+      if (debug) print('🎓 [MajorRecs] ⚡ OPTIMIZADO - Usuario: $currentUserId, Major: $currentMajor');
 
       List<String> targetUserIds = [];
 
-      // 2. Si tiene major, buscar usuarios con el mismo major
+      // 2. Si tiene major, buscar usuarios con el mismo major (limit to 50 users max)
       if (currentMajor != null && currentMajor.isNotEmpty) {
         final usersSnapshot = await _db
             .collection('users')
             .where('major', isEqualTo: currentMajor)
+            .limit(50)
             .get();
 
         targetUserIds = usersSnapshot.docs
             .map((doc) => doc.id)
-            .where((id) => id != currentUserId) // Excluir usuario actual
+            .where((id) => id != currentUserId)
             .toList();
 
         if (debug) {
@@ -68,14 +96,17 @@ class MajorRecommendationsService {
         }
       }
 
-      // 3. Si no hay usuarios con el mismo major, usar todos los usuarios
+      // 3. Si no hay usuarios con el mismo major, usar subset de usuarios (limit to 30)
       if (targetUserIds.isEmpty) {
-        if (debug) print('🎓 [MajorRecs] No hay otros usuarios con el mismo major, usando todos');
-        
-        final allUsersSnapshot = await _db.collection('users').get();
+        if (debug) print('🎓 [MajorRecs] No hay otros usuarios con el mismo major, usando subset');
+
+        final allUsersSnapshot = await _db
+            .collection('users')
+            .limit(30)
+            .get();
         targetUserIds = allUsersSnapshot.docs
             .map((doc) => doc.id)
-            .where((id) => id != currentUserId) // Excluir usuario actual
+            .where((id) => id != currentUserId)
             .toList();
 
         if (debug) print('🎓 [MajorRecs] Total usuarios disponibles: ${targetUserIds.length}');
@@ -86,56 +117,57 @@ class MajorRecommendationsService {
         return [];
       }
 
-      // 4. Obtener eventos de clicks/vistas de esos usuarios de product_click_events
+      // 4. OPTIMIZATION: Limit events processed per batch to 50
       final cutoffDate = DateTime.now().subtract(Duration(days: windowDays));
-      
-      // Firestore "in" query tiene límite de 10 items, así que procesamos en batches
       final Map<String, int> postViewCounts = {};
-      
-      for (int i = 0; i < targetUserIds.length; i += 10) {
+
+      // OPTIMIZATION: Process max 2 batches (20 users) for speed
+      final maxBatches = 2;
+      int batchCount = 0;
+
+      for (int i = 0; i < targetUserIds.length && batchCount < maxBatches; i += 10) {
         final batch = targetUserIds.skip(i).take(10).toList();
-        
+        batchCount++;
+
         final eventsSnapshot = await _db
             .collection('product_click_events')
             .where('userId', whereIn: batch)
             .where('timestamp', isGreaterThan: Timestamp.fromDate(cutoffDate))
+            .limit(50) // OPTIMIZATION: Limit events per batch
             .get();
 
         if (debug) {
           print('🎓 [MajorRecs] Batch ${i ~/ 10 + 1}: ${eventsSnapshot.docs.length} clicks');
         }
 
-        // Contar clicks por post_ref
+        // Contar clicks por postId
         for (final doc in eventsSnapshot.docs) {
           final data = doc.data();
-          
-          if (debug) print('🎓 [MajorRecs] Click data: ${data.keys.join(', ')}');
-          
-          // Obtener el post_ref (puede ser DocumentReference o String)
-          final dynamic postRef = data['post_ref'];
           String? postId;
-          
-          if (postRef is DocumentReference) {
-            postId = postRef.id;
-            if (debug) print('🎓 [MajorRecs]   postRef es DocumentReference, ID: $postId');
-          } else if (postRef is String) {
-            // Si es string, extraer el ID del path
-            var path = postRef.trim();
-            if (path.contains('/')) {
-              postId = path.split('/').last;
-            } else {
-              postId = path;
+
+          // Intentar obtener postId desde diferentes campos (estructura inconsistente en Firebase)
+          // 1. Buscar campo 'postId' (string directo)
+          if (data.containsKey('postId')) {
+            final postIdValue = data['postId'];
+            if (postIdValue is String && postIdValue.isNotEmpty) {
+              postId = postIdValue;
             }
-            if (debug) print('🎓 [MajorRecs]   postRef es String: "$path", extraído ID: $postId');
-          } else {
-            if (debug) print('🎓 [MajorRecs]   postRef tipo desconocido: ${postRef?.runtimeType}');
           }
-          
+
+          // 2. Si no, buscar campo 'post_ref' (DocumentReference o String)
+          if (postId == null && data.containsKey('post_ref')) {
+            final dynamic postRef = data['post_ref'];
+
+            if (postRef is DocumentReference) {
+              postId = postRef.id;
+            } else if (postRef is String && postRef.isNotEmpty) {
+              var path = postRef.trim();
+              postId = path.contains('/') ? path.split('/').last : path;
+            }
+          }
+
           if (postId != null && postId.isNotEmpty) {
             postViewCounts[postId] = (postViewCounts[postId] ?? 0) + 1;
-            if (debug) print('🎓 [MajorRecs]   ✓ Contando click para post: $postId (total: ${postViewCounts[postId]})');
-          } else {
-            if (debug) print('🎓 [MajorRecs]   ✗ No se pudo extraer postId');
           }
         }
       }
@@ -156,47 +188,48 @@ class MajorRecommendationsService {
         // NO retornar vacío aquí, continuar al paso 7 (fallback)
       }
 
-      // 6. Obtener posts activos basados en los IDs más clickeados
+      // 6. OPTIMIZATION: Batch fetch all posts at once
       final List<Post> resultPosts = [];
-      
-      // Solo intentar esto si hay posts con clicks
+
       if (sortedPosts.isNotEmpty) {
-        for (final entry in sortedPosts) {
-          if (resultPosts.length >= limit) break;
+        // Get top post IDs (limit * 3 to account for inactive/own posts)
+        final topPostIds = sortedPosts.take(limit * 3).map((e) => e.key).toList();
 
-          final postId = entry.key;
-          
+        if (debug) print('🎓 [MajorRecs] ⚡ Fetching ${topPostIds.length} posts in batches...');
+
+        // OPTIMIZATION: Fetch posts in batches of 10 using whereIn
+        for (int i = 0; i < topPostIds.length && resultPosts.length < limit; i += 10) {
+          final batch = topPostIds.skip(i).take(10).toList();
+
           try {
-            // Obtener el post específico
-            final postDoc = await _db.collection('posts').doc(postId).get();
-            
-            if (!postDoc.exists) {
-              if (debug) print('🎓 [MajorRecs] Post $postId no existe en la BD');
-              continue;
-            }
+            final postsSnapshot = await _db
+                .collection('posts')
+                .where(FieldPath.documentId, whereIn: batch)
+                .where('status', isEqualTo: 'active')
+                .get();
 
-            final postData = Map<String, dynamic>.from(postDoc.data()!);
-            postData['id'] = postDoc.id;
-            postData['_id'] = postDoc.id;
-            
-            final post = Post.fromJson(postData);
-            
-            // Filtrar posts no activos
-            if (post.status != 'active') {
-              if (debug) print('🎓 [MajorRecs] Post $postId no está activo (status: ${post.status})');
-              continue;
+            for (final doc in postsSnapshot.docs) {
+              if (resultPosts.length >= limit) break;
+
+              final postData = Map<String, dynamic>.from(doc.data());
+              postData['id'] = doc.id;
+              postData['_id'] = doc.id;
+
+              final post = Post.fromJson(postData);
+
+              // Filtrar posts propios
+              if (post.userId == currentUserId) {
+                if (debug) print('🎓 [MajorRecs] Post ${doc.id} es propio, saltando');
+                continue;
+              }
+
+              resultPosts.add(post);
+              final clicks = postViewCounts[doc.id] ?? 0;
+              if (debug) print('🎓 [MajorRecs] ✓ Post agregado: ${post.title} ($clicks clicks)');
             }
-            
-            // Filtrar posts propios
-            if (post.userId == currentUserId) {
-              if (debug) print('🎓 [MajorRecs] Post $postId es propio, saltando');
-              continue;
-            }
-            
-            resultPosts.add(post);
-            if (debug) print('🎓 [MajorRecs] ✓ Post agregado: ${post.title} (${entry.value} clicks)');
           } catch (e) {
-            if (debug) print('🎓 [MajorRecs] ❌ Error obteniendo post $postId: $e');
+            if (debug) print('🎓 [MajorRecs] ❌ Error en batch: $e');
+            continue;
           }
         }
       }
@@ -247,15 +280,28 @@ class MajorRecommendationsService {
         }
       }
 
+      stopwatch.stop();
+      
+      // Cache the result for 30 minutes
+      _majorRecommendationCache.put(currentUserId, resultPosts, ttl: Duration(minutes: 30));
+      
       if (debug) {
-        print('🎓 [MajorRecs] RESULTADO FINAL: ${resultPosts.length} posts');
+        print('🎓 [MajorRecs] ⚡ TOTAL: ${resultPosts.length} posts en ${stopwatch.elapsedMilliseconds}ms');
+        print('🎓 [MajorRecs] 💾 Cached major-based recommendations for user $currentUserId (TTL: 30 min)');
+        print('🎓 [MajorRecs] 📊 LRU Hit Rate: ${_majorRecommendationCache.hitRate.toStringAsFixed(2)}%');
       }
 
       return resultPosts;
     } catch (e, stackTrace) {
-      if (debug) {
-        print('🎓 [MajorRecs] ❌ Error: $e');
-        print(stackTrace);
+      // Simplificar error de UNAVAILABLE (offline)
+      final errorMsg = e.toString();
+      if (errorMsg.contains('unavailable') || errorMsg.contains('UNAVAILABLE')) {
+        if (debug) print('🎓 [MajorRecs] ⚠️ Offline - cannot fetch major-based products');
+      } else {
+        if (debug) {
+          print('🎓 [MajorRecs] ❌ Error: $e');
+          print(stackTrace);
+        }
       }
       return [];
     }

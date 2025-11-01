@@ -21,14 +21,29 @@ class Sale {
   });
 
   factory Sale.fromJson(Map<String, dynamic> json) {
+    // Helper to extract ID from DocumentReference or String
+    String extractId(dynamic ref) {
+      if (ref == null) return '';
+      if (ref is String) return ref; // Already a string (from cache)
+      return ref.id; // DocumentReference (from Firestore)
+    }
+    
+    // Handle created_at from Timestamp (Firestore) or String (cache)
+    DateTime parseCreatedAt(dynamic createdAt) {
+      if (createdAt == null) return DateTime.now();
+      if (createdAt is DateTime) return createdAt;
+      if (createdAt is String) return DateTime.tryParse(createdAt) ?? DateTime.now();
+      return createdAt.toDate(); // Timestamp (Firestore)
+    }
+    
     return Sale(
       id: json['_id'] ?? json['id'],
-      postId: json['post_ref'].id,
-      buyerId: json['buyer_ref'].id,
-      sellerId: json['seller_ref'].id,
+      postId: extractId(json['post_ref']),
+      buyerId: extractId(json['buyer_ref']),
+      sellerId: extractId(json['seller_ref']),
       price: json['price'] is int ? json['price'] : (json['price'] as num).toInt(),
       status: json['status'],
-      createdAt: json['created_at'].toDate(),
+      createdAt: parseCreatedAt(json['created_at']),
     );
   }
 

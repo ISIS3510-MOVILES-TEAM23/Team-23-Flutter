@@ -60,7 +60,7 @@ This document describes the eventual connectivity scenarios for the Campus Marke
 | **System Response** | The system will display products using the last locally saved data with a banner: "Offline - Showing cached products. Last updated: 2 hours ago." |
 | **Possible Antipatterns** | #4 Lost content, #2 Stuck progress bar, #3 Non-informative message |
 | **Caching + Retrieving Strategy** | #3 Network falling back to cache, #4 Cached on network response, #1 Cache falling back to network |
-| **Storage Type** | 2. Local database (Hive) + 1.e. Firestore cache |
+| **Storage Type** | 2. Local database (Hive only - Firestore auto-cache DISABLED) |
 | **Stored Data Type** | Post Documents (id, title, description, price, images URLs, categoryId, userId, createdAt), cached images via cached_network_image |
 | **Rationale** | Given that product listings are unlikely to change rapidly and the information rarely expires in short periods, it is logical to display this locally saved data when there is no connectivity. This maintains user engagement and allows browsing even offline. Cache expires after 7 days to prevent excessive stale data. Images are cached automatically by the cached_network_image package already implemented. |
 

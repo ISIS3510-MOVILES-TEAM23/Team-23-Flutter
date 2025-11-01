@@ -9,6 +9,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/models.dart';
+import 'cache_service.dart'; // Scenario 8: For offline categories
+import 'connectivity_service.dart'; // Scenario 8: Check connection status
 
 class FirestoreService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -18,62 +20,44 @@ class FirestoreService {
   static PackageInfo? _cachedPackageInfo;
 
   static Future<List<Post>> getHighlightedPosts() async {
-    print('🔥 [FirestoreService] getHighlightedPosts() - inicio');
     final snapshot = await _db
         .collection('posts')
         .orderBy('created_at', descending: true)
         .limit(10)
         .get();
-    print(
-        '🔥 [FirestoreService] getHighlightedPosts() - documentos obtenidos: ${snapshot.docs.length}');
     // Filtrar por status en el cliente temporalmente
     final posts = snapshot.docs
         .map((doc) {
           final data = Map<String, dynamic>.from(doc.data());
           data['id'] = doc.id; // Asegurar que el ID se asigne
           data['_id'] = doc.id; // También asignar _id por si acaso
-          print(
-              '🔥 [FirestoreService] getHighlightedPosts() - crudo doc ${doc.id}: $data');
           final post = Post.fromJson(data);
-          print(
-              '🔥 [FirestoreService] getHighlightedPosts() - post parsed ID=${post.id}, title="${post.title}", status=${post.status}, category=${post.categoryId}');
           return post;
         })
         .where((post) => post.status == 'active')
         .take(4)
         .toList();
-    print(
-        '🔥 [FirestoreService] getHighlightedPosts() - posts activos finales: ${posts.length}');
     return posts;
   }
 
   static Future<List<Post>> getNewPosts() async {
-    print('🆕 [FirestoreService] getNewPosts() - inicio');
     final snapshot = await _db
         .collection('posts')
         .orderBy('created_at', descending: true)
-        .limit(10)
+        .limit(30)
         .get();
-    print(
-        '🆕 [FirestoreService] getNewPosts() - documentos obtenidos: ${snapshot.docs.length}');
     // Filtrar por status en el cliente temporalmente
     final posts = snapshot.docs
         .map((doc) {
           final data = Map<String, dynamic>.from(doc.data());
           data['id'] = doc.id; // Asegurar que el ID se asigne
           data['_id'] = doc.id; // También asignar _id por si acaso
-          print(
-              '🆕 [FirestoreService] getNewPosts() - crudo doc ${doc.id}: $data');
           final post = Post.fromJson(data);
-          print(
-              '🆕 [FirestoreService] getNewPosts() - post parsed ID=${post.id}, title="${post.title}", status=${post.status}, category=${post.categoryId}');
           return post;
         })
         .where((post) => post.status == 'active')
-        .take(5)
+        .take(20)
         .toList();
-    print(
-        '🆕 [FirestoreService] getNewPosts() - posts activos finales: ${posts.length}');
     return posts;
   }
 
@@ -99,11 +83,12 @@ class FirestoreService {
         'userId': userId,
       };
 
-      print('📊 [FirestoreService] Logging product search event -> $payload');
       await _db.collection('product_search_events').add(payload);
-    } catch (e, st) {
-      print('⚠️ [FirestoreService] Error logging product search event: $e');
-      print(st);
+    } catch (e) {
+      final errorMsg = e.toString();
+      if (!errorMsg.contains('unavailable') && !errorMsg.contains('UNAVAILABLE')) {
+        print('⚠️ Error logging product search event: $e');
+      }
     }
   }
 
@@ -128,11 +113,12 @@ class FirestoreService {
         'userId': userId,
       };
 
-      print('👆 [FirestoreService] Logging product click event -> postId: $postId, userId: $userId');
       await _db.collection('product_click_events').add(payload);
-    } catch (e, st) {
-      print('⚠️ [FirestoreService] Error logging product click event: $e');
-      print(st);
+    } catch (e) {
+      final errorMsg = e.toString();
+      if (!errorMsg.contains('unavailable') && !errorMsg.contains('UNAVAILABLE')) {
+        print('⚠️ Error logging product click event: $e');
+      }
     }
   }
 
@@ -315,49 +301,77 @@ class FirestoreService {
   }
 
   static Future<List<Category>> getCategories({bool debug = false}) async {
-    if (debug) print('🔍 GETTING CATEGORIES - START');
-
-    final snapshot = await _db.collection('categories').get();
-    if (debug)
-      print('📁 Found ${snapshot.docs.length} category documents in Firestore');
-
-    final allCategories = snapshot.docs.map((doc) {
-      final data = Map<String, dynamic>.from(doc.data());
-      data['id'] = doc.id;
-      data['_id'] = doc.id;
-      final category = Category.fromJson(data);
-      if (debug)
-        print('📂 Category: ID="${category.id}", Name="${category.name}"');
-      return category;
-    }).toList();
-
-    if (debug) {
-      final postsSnapshot = await _db.collection('posts').get();
-      print(
-          '📄 Found ${postsSnapshot.docs.length} post documents in Firestore');
-      for (final postDoc in postsSnapshot.docs) {
-        final postData = postDoc.data();
-        final dynamic rawCategoryId = postData['category_id'];
-        final categoryId = rawCategoryId is DocumentReference
-            ? rawCategoryId.path
-            : rawCategoryId?.toString();
-        final status = postData['status']?.toString();
-        final title = postData['title']?.toString();
-        print(
-            '📝 Post: Title="$title", category_id="$categoryId", status="$status"');
+    // Scenario 8: Smart cache strategy for categories
+    
+    // Import ConnectivityService to check connection status
+    final connectivity = ConnectivityService();
+    final isOffline = !connectivity.isConnected;
+    
+    // STRATEGY 1: If offline, try cache FIRST (faster + avoids timeout)
+    if (isOffline) {
+      debugPrint('[Firestore] 📴 Offline detected - loading categories from cache first...');
+      try {
+        final cached = await CacheService().getCachedCategories();
+        if (cached != null && cached.isNotEmpty) {
+          debugPrint('[Firestore] ✅ Loaded ${cached.length} categories from cache (offline mode)');
+          return cached.map((json) => Category.fromJson(json)).toList();
+        }
+        debugPrint('[Firestore] ⚠️ No cached categories found (offline mode)');
+      } catch (e) {
+        debugPrint('[Firestore] ✗ Failed to load from cache: $e');
       }
-      print('✅ Returning ALL ${allCategories.length} categories for debugging');
+      
+      // If cache fails and we're offline, throw error with helpful message
+      throw Exception('No internet connection and no cached categories available. Please connect to internet to load categories for the first time.');
     }
-
-    return allCategories;
+    
+    // STRATEGY 2: If online, fetch from Firestore and update cache
+    try {
+      debugPrint('[Firestore] 📂 Online - fetching categories from Firestore...');
+      final snapshot = await _db.collection('categories').get();
+      final allCategories = snapshot.docs.map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        data['id'] = doc.id;
+        data['_id'] = doc.id;
+        return Category.fromJson(data);
+      }).toList();
+      
+      debugPrint('[Firestore] ✓ Fetched ${allCategories.length} categories from Firestore');
+      
+      // Cache for offline use (AWAIT to ensure it's saved)
+      if (allCategories.isNotEmpty) {
+        try {
+          await CacheService().cacheCategories(
+            allCategories.map((c) => c.toJson()).toList(),
+          );
+          debugPrint('[Firestore] ✓ Categories cached successfully for offline use');
+        } catch (e) {
+          debugPrint('[Firestore] ⚠️ Failed to cache categories: $e');
+        }
+      }
+      
+      return allCategories;
+    } catch (e) {
+      // STRATEGY 3: If Firestore fails but we think we're online, try cache as fallback
+      debugPrint('[Firestore] ⚠️ Failed to fetch from Firestore: $e');
+      debugPrint('[Firestore] 🔄 Attempting fallback to cache...');
+      
+      final cached = await CacheService().getCachedCategories();
+      if (cached != null && cached.isNotEmpty) {
+        debugPrint('[Firestore] ✅ Loaded ${cached.length} categories from cache (fallback)');
+        return cached.map((json) => Category.fromJson(json)).toList();
+      }
+      
+      // No cache available
+      debugPrint('[Firestore] ❌ No cached categories available');
+      debugPrint('[Firestore] ℹ️  Please connect to internet to load categories');
+      rethrow;
+    }
   }
 
   static Future<List<Post>> getPostsByCategory(String categoryId,
       {FilterOptions? filters}) async {
-    print('🚀 GETTING POSTS BY CATEGORY - START'); // Debug
-    print('🎯 Input categoryId: "$categoryId"'); // Debug
-
-    // PASO 1: Encontrar el ID de documento de la categoría basado en el nombre
+    // Encontrar el ID de documento de la categoría basado en el nombre
     String? actualCategoryDocId;
     final categoriesSnapshot = await _db.collection('categories').get();
 
@@ -366,34 +380,23 @@ class FirestoreService {
       final categoryName = categoryData['name'] as String?;
       final categoryDocId = categoryDoc.id;
 
-      print(
-          '📂 Checking category: ID="$categoryDocId", Name="$categoryName"'); // Debug
-
       if (categoryName == categoryId || categoryDocId == categoryId) {
         actualCategoryDocId = categoryDocId;
-        print(
-            '🎯 FOUND MATCH! Using document ID: "$actualCategoryDocId" for input: "$categoryId"'); // Debug
         break;
       }
     }
 
-    if (actualCategoryDocId == null) {
-      print('❌ No matching category found for: "$categoryId"'); // Debug
-      return [];
-    }
+    if (actualCategoryDocId == null) return [];
 
-    // PASO 2: Obtener TODOS los posts sin filtro
+    // Obtener todos los posts
     final snapshot = await _db
         .collection('posts')
         .orderBy('created_at', descending: true)
         .get();
-    print('📄 Found ${snapshot.docs.length} total posts in Firestore'); // Debug
 
-    // PASO 3: Buscar AMBOS formatos - por ID y por nombre
+    // Buscar ambos formatos - por ID y por nombre
     final targetById = 'categories/$actualCategoryDocId';
     final targetByName = 'categories/$categoryId';
-    print(
-        '🎯 Looking for posts with category_id="$targetById" OR "$targetByName"'); // Debug
 
     final filteredPosts = <Post>[];
 
@@ -403,24 +406,15 @@ class FirestoreService {
       data['_id'] = doc.id;
       final post = Post.fromJson(data);
 
-      // Solo posts activos
       if (post.status != 'active') continue;
 
-      // Verificar match con AMBOS formatos
       final matchById = post.categoryId == targetById;
       final matchByName = post.categoryId == targetByName;
 
       if (matchById || matchByName) {
-        print(
-            '✅ MATCH: "${post.title}" has category_id="${post.categoryId}" (${matchById ? "by ID" : "by NAME"})'); // Debug
         filteredPosts.add(post);
-      } else {
-        print(
-            '❌ NO MATCH: "${post.title}" has category_id="${post.categoryId}"'); // Debug
       }
     }
-
-    print('🎉 FINAL RESULT: ${filteredPosts.length} posts found'); // Debug
 
     return filteredPosts;
   }
@@ -453,6 +447,12 @@ class FirestoreService {
     }).toList();
   }
 
+  /// Get current Firebase Auth user (works offline)
+  static auth.User? getCurrentFirebaseUser() {
+    return _auth.currentUser;
+  }
+
+  /// Get current user from Firestore (requires network)
   static Future<User?> getCurrentUser() async {
     final firebaseUser = _auth.currentUser;
     if (firebaseUser == null) return null;
@@ -571,20 +571,31 @@ class FirestoreService {
   }
 
   static Future<List<Post>> getUserPosts(String userId) async {
-    final snapshot = await _db
-        .collection('posts')
-        .orderBy('created_at', descending: true)
-        .get();
-    // Filtrar por usuario en el cliente temporalmente
-    return snapshot.docs
-        .map((doc) {
-          final data = Map<String, dynamic>.from(doc.data());
-          data['id'] = doc.id;
-          data['_id'] = doc.id;
-          return Post.fromJson(data);
-        })
-        .where((post) => post.userId == userId)
-        .toList();
+    debugPrint('[FirestoreService] 📦 getUserPosts for userId: $userId');
+    try {
+      final snapshot = await _db
+          .collection('posts')
+          .orderBy('created_at', descending: true)
+          .get();
+      debugPrint('[FirestoreService] 📥 Got ${snapshot.docs.length} total posts');
+
+      // Filtrar por usuario en el cliente temporalmente
+      final userPosts = snapshot.docs
+          .map((doc) {
+            final data = Map<String, dynamic>.from(doc.data());
+            data['id'] = doc.id;
+            data['_id'] = doc.id;
+            return Post.fromJson(data);
+          })
+          .where((post) => post.userId == userId)
+          .toList();
+
+      debugPrint('[FirestoreService] ✅ Filtered to ${userPosts.length} user posts');
+      return userPosts;
+    } catch (e) {
+      debugPrint('[FirestoreService] ❌ Error getting user posts: $e');
+      return [];
+    }
   }
 
   static Future<List<Post>> getUserPurchases(String userId) async {

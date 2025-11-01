@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../data/repositories/wish_list_repository.dart';
-import '../models/post_model.dart';
-import '../models/wish_list_model.dart';
+import '../services/cache_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/hive_service.dart';
+import '../models/models.dart';
 
 class WishListViewModel extends ChangeNotifier {
   final WishListRepository _repository;
-  final ConnectivityService _connectivityService;
+  final CacheService _cache = CacheService();
+  final ConnectivityService _connectivity;
 
   WishListViewModel({
     WishListRepository? repository,
     ConnectivityService? connectivityService,
   })  : _repository = repository ?? WishListRepository(),
-        _connectivityService = connectivityService ?? ConnectivityService();
+        _connectivity = connectivityService ?? ConnectivityService();
 
   List<WishListItem> _items = [];
   bool _isLoading = true;
   String? _error;
+  bool _isLoadedFromCache = false;
   bool _isOffline = false;
   DateTime? _lastSyncTime;
 
@@ -26,6 +28,7 @@ class WishListViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isEmpty => _items.isEmpty && !_isLoading;
+  bool get isLoadedFromCache => _isLoadedFromCache;
   bool get isOffline => _isOffline;
   DateTime? get lastSyncTime => _lastSyncTime;
 
@@ -37,11 +40,12 @@ class WishListViewModel extends ChangeNotifier {
       _error = null;
       
       // Check connectivity
-      _isOffline = !(await _connectivityService.checkConnectivity());
+      _isOffline = !(await _connectivity.checkConnectivity());
       debugPrint('🌐 [WishListVM] Offline mode: $_isOffline');
       
       notifyListeners();
 
+      List<WishListItem> wishItems = [];
       _items = await _repository.getWishListItems();
       debugPrint('✅ [WishListVM] Loaded ${_items.length} items');
 
@@ -52,6 +56,43 @@ class WishListViewModel extends ChangeNotifier {
         debugPrint('🕒 [WishListVM] Last sync time: $_lastSyncTime');
       }
 
+      // Try network first if online
+      if (_connectivity.isConnected) {
+        try {
+          debugPrint('[WishList] ✅ Online - fetching from network');
+          wishItems = await _repository.getWishListItems();
+          debugPrint('[WishList] 📥 Received ${wishItems.length} items from network');
+
+          // Cache wish list (always cache, even if empty)
+          await _cache.cacheWishList(wishItems.map((item) => item.toJsonForCache()).toList());
+          debugPrint('[WishList] 💾 Cached ${wishItems.length} items');
+          _isLoadedFromCache = false;
+        } catch (e) {
+          debugPrint('[WishList] ❌ Network failed, trying cache: $e');
+          // Fallback to cache
+          final cached = await _cache.getCachedWishList();
+          debugPrint('[WishList] 📦 Cache result: ${cached == null ? "NULL" : "${cached.length} items"}');
+          if (cached != null) {
+            wishItems = cached.map((json) => WishListItem.fromJson(json)).toList();
+            _isLoadedFromCache = true;
+            debugPrint('[WishList] ✓ Loaded ${wishItems.length} items from cache');
+          }
+        }
+      } else {
+        // Offline - load from cache
+        debugPrint('[WishList] 📴 Offline - loading from cache');
+        final cached = await _cache.getCachedWishList();
+        debugPrint('[WishList] 📦 Cache result: ${cached == null ? "NULL" : "${cached.length} items"}');
+        if (cached != null) {
+          wishItems = cached.map((json) => WishListItem.fromJson(json)).toList();
+          _isLoadedFromCache = true;
+          debugPrint('[WishList] ✓ Loaded ${wishItems.length} items from cache');
+        } else {
+          debugPrint('[WishList] ⚠️ No cached wish list (open app online first to cache)');
+        }
+      }
+
+      _items = wishItems;
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -67,7 +108,7 @@ class WishListViewModel extends ChangeNotifier {
     try {
       final success = await _repository.addToWishList(product, notes: notes);
       if (success) {
-        await loadWishList();
+        await loadWishList(); // This will re-cache
       }
       return success;
     } catch (e) {
@@ -87,9 +128,14 @@ class WishListViewModel extends ChangeNotifier {
       _items.removeWhere((item) => item.id == wishListItemId);
       notifyListeners();
 
-      final success = await _repository.removeFromWishList(wishListItemId, productId);
+      final success = await _repository.removeFromWishList(wishListItemId);
       
-      if (!success) {
+      if (success) {
+        _items.removeWhere((item) => item.id == wishListItemId);
+        // Update cache
+        await _cache.cacheWishList(_items.map((item) => item.toJsonForCache()).toList());
+        notifyListeners();
+      }else {
         // Revert on failure
         await loadWishList();
       }
