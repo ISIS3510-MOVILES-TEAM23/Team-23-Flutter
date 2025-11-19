@@ -7,6 +7,7 @@ import '../data/repositories/wish_list_repository.dart';
 import '../services/firestore_service.dart';
 import '../services/cache_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/similar_products_service.dart';
 
 class ProductDetailViewModel extends ChangeNotifier {
   final PostRepository _postRepository;
@@ -15,6 +16,7 @@ class ProductDetailViewModel extends ChangeNotifier {
   final WishListRepository _wishListRepository;
   final CacheService _cache = CacheService();
   final ConnectivityService _connectivity = ConnectivityService();
+  final SimilarProductsService _similarProductsService = SimilarProductsService();
 
   ProductDetailViewModel({
     PostRepository? postRepository,
@@ -33,6 +35,11 @@ class ProductDetailViewModel extends ChangeNotifier {
   int currentImageIndex = 0;
   bool isLoadedFromCache = false;
   bool hasExistingChat = false;
+
+  // Similar products state
+  List<Post> similarProducts = [];
+  bool isLoadingSimilarProducts = false;
+  bool isSimilarProductsLoadedFromCache = false;
 
   Future<void> loadProduct(String productId) async {
     try {
@@ -112,10 +119,55 @@ class ProductDetailViewModel extends ChangeNotifier {
       seller = user;
       isLoading = false;
       notifyListeners();
+
+      // Load similar products after main product loads
+      if (prod != null) {
+        loadSimilarProducts(forceRefresh: false);
+      }
     } catch (e) {
       isLoading = false;
       notifyListeners();
       rethrow;
+    }
+  }
+
+  /// Load similar hot products from the same category
+  /// This runs asynchronously after the main product loads
+  Future<void> loadSimilarProducts({bool forceRefresh = false}) async {
+    if (product == null) return;
+
+    try {
+      isLoadingSimilarProducts = true;
+      isSimilarProductsLoadedFromCache = false;
+      notifyListeners();
+
+      // Check if we're offline
+      final isOffline = !_connectivity.isConnected;
+
+      final products = await _similarProductsService.getSimilarHotProducts(
+        categoryId: product!.categoryId,
+        excludePostId: product!.id,
+        limit: 6,
+        windowDays: 30,
+        forceRefresh: forceRefresh,
+        debug: true,
+      );
+
+      similarProducts = products;
+
+      // Set cache flag based on connectivity
+      // If we got results while offline, they must be from cache
+      if (isOffline && products.isNotEmpty) {
+        isSimilarProductsLoadedFromCache = true;
+      }
+
+      isLoadingSimilarProducts = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ProductDetail] Error loading similar products: $e');
+      similarProducts = [];
+      isLoadingSimilarProducts = false;
+      notifyListeners();
     }
   }
 

@@ -657,6 +657,153 @@ class CacheService {
     }
   }
 
+  /// Cache similar products for a category
+  Future<void> cacheSimilarProducts(
+      String categoryId, List<Map<String, dynamic>> products) async {
+    try {
+      debugPrint(
+          '[Cache] 💾 Saving ${products.length} similar products for category $categoryId...');
+      final cacheData = {
+        'data': products,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.postsBoxName,
+        'similar_products_$categoryId',
+        jsonEncode(cacheData),
+      );
+
+      for (final product in products) {
+        await _cacheSinglePostMap(product);
+      }
+      debugPrint('[Cache] ✓ Cached ${products.length} similar products');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache similar products: $e');
+    }
+  }
+
+  /// Get cached similar products for a category
+  Future<List<Map<String, dynamic>>?> getCachedSimilarProducts(
+      String categoryId) async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.postsBoxName,
+        'similar_products_$categoryId',
+      );
+
+      if (cached == null) return null;
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      // Use same TTL as posts (7 days)
+      if (DateTime.now().difference(timestamp) > postsCacheDuration) {
+        return null;
+      }
+
+      return (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached similar products: $e');
+      return null;
+    }
+  }
+
+  /// Cache product click events for offline hotness calculation
+  Future<void> cacheProductClickEvents(
+      List<Map<String, dynamic>> clicks) async {
+    try {
+      debugPrint(
+          '[Cache] 💾 Saving ${clicks.length} product click events...');
+      final cacheData = {
+        'data': clicks,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.postsBoxName,
+        'product_click_events',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached ${clicks.length} product click events');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache product click events: $e');
+    }
+  }
+
+  /// Get cached product click events
+  Future<List<Map<String, dynamic>>?> getCachedProductClickEvents() async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.postsBoxName,
+        'product_click_events',
+      );
+
+      if (cached == null) return null;
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      // Use same TTL as posts (7 days)
+      if (DateTime.now().difference(timestamp) > postsCacheDuration) {
+        return null;
+      }
+
+      return (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached product click events: $e');
+      return null;
+    }
+  }
+
+  /// Cache sales data for offline hotness calculation
+  Future<void> cacheSalesData(List<Map<String, dynamic>> sales) async {
+    try {
+      debugPrint('[Cache] 💾 Saving ${sales.length} sales records...');
+      final cacheData = {
+        'data': sales,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.postsBoxName,
+        'sales_data',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached ${sales.length} sales records');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache sales data: $e');
+    }
+  }
+
+  /// Get cached sales data
+  Future<List<Map<String, dynamic>>?> getCachedSalesData() async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.postsBoxName,
+        'sales_data',
+      );
+
+      if (cached == null) return null;
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      // Use same TTL as posts (7 days)
+      if (DateTime.now().difference(timestamp) > postsCacheDuration) {
+        return null;
+      }
+
+      return (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached sales data: $e');
+      return null;
+    }
+  }
+
   /// Clear all caches
   Future<void> clearAllCaches() async {
     try {

@@ -56,9 +56,17 @@ class _OfflineBannerState extends State<OfflineBanner> {
   Widget build(BuildContext context) {
     if (!_isVisible) return const SizedBox.shrink();
 
+    // Get safe area padding to avoid notch
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.only(
+        top: topPadding > 0 ? topPadding + 8 : 8, // Add extra padding if there's a notch
+        bottom: 8,
+        left: 16,
+        right: 16,
+      ),
       color: Colors.orange.shade700,
       child: Row(
         children: [
