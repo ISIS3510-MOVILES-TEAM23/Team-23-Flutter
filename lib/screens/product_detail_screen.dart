@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../view_models/product_detail_view_model.dart';
 import '../widgets/offline_network_image.dart';
 import '../widgets/rating_widget.dart';
+import '../widgets/similar_products_section.dart';
 import '../services/connectivity_service.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -53,7 +54,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (!_connectivity.isConnected && !viewModel.hasExistingChat) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Cannot start new chat while offline. Please connect to internet to contact this seller.'),
+          content: const Text(
+              'Cannot start new chat while offline. Please connect to internet to contact this seller.'),
           backgroundColor: Colors.orange.shade700,
           duration: const Duration(seconds: 3),
         ),
@@ -143,33 +145,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SafeArea(
-            child: Column(
-              children: [
-                // Scenario 9: Offline banner when loaded from cache
-                if (viewModel.isLoadedFromCache)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    color: Colors.orange.shade100,
-                    child: Row(
-                      children: [
-                        Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Offline - Showing cached information.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.orange.shade900,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                Expanded(
-                  child: Padding(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,27 +180,34 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     left: 0,
                                     right: 0,
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: List.generate(
                                         product.images.length,
                                         (i) => AnimatedContainer(
-                                          duration: const Duration(milliseconds: 200),
+                                          duration:
+                                              const Duration(milliseconds: 200),
                                           margin: const EdgeInsets.symmetric(
                                               horizontal: 4),
-                                          width: viewModel.currentImageIndex == i
-                                              ? 10
-                                              : 8,
-                                          height: viewModel.currentImageIndex == i
-                                              ? 10
-                                              : 8,
+                                          width:
+                                              viewModel.currentImageIndex == i
+                                                  ? 10
+                                                  : 8,
+                                          height:
+                                              viewModel.currentImageIndex == i
+                                                  ? 10
+                                                  : 8,
                                           decoration: BoxDecoration(
-                                            color: viewModel.currentImageIndex == i
-                                                ? Colors.white
-                                                : Colors.white.withOpacity(0.6),
+                                            color:
+                                                viewModel.currentImageIndex == i
+                                                    ? Colors.white
+                                                    : Colors.white
+                                                        .withOpacity(0.6),
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.black.withOpacity(0.2),
+                                                color: Colors.black
+                                                    .withOpacity(0.2),
                                                 blurRadius: 3,
                                               )
                                             ],
@@ -319,40 +306,58 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             ),
                           ],
                         ),
-                        const Spacer(),
-                        // Scenario 10: Disable button when offline without existing chat
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: product.status == 'active' && 
-                                       (_connectivity.isConnected || viewModel.hasExistingChat)
-                                ? _initiateChat
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              backgroundColor: product.status == 'active' &&
-                                      (_connectivity.isConnected || viewModel.hasExistingChat)
-                                  ? AppColors.primaryColor
-                                  : AppColors.textSecondary,
-                            ),
-                            child: Text(
-                              product.status != 'active'
-                                  ? 'Not available'
-                                  : (!_connectivity.isConnected && !viewModel.hasExistingChat)
-                                      ? 'Offline - Cannot start chat'
-                                      : 'Chat with seller',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
+                        const SizedBox(height: 32),
                       ],
                     ),
                   ),
-                ),
-              ],
+
+                  // Similar products section
+                  SimilarProductsSection(
+                    products: viewModel.similarProducts,
+                    isLoading: viewModel.isLoadingSimilarProducts,
+                    isLoadedFromCache:
+                        viewModel.isSimilarProductsLoadedFromCache,
+                    onProductTap: (product) {
+                      context.push('/home/product/${product.id}');
+                    },
+                  ),
+
+                  // Chat button (fixed at bottom)
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: product.status == 'active' &&
+                                (_connectivity.isConnected ||
+                                    viewModel.hasExistingChat)
+                            ? _initiateChat
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: product.status == 'active' &&
+                                  (_connectivity.isConnected ||
+                                      viewModel.hasExistingChat)
+                              ? AppColors.primaryColor
+                              : AppColors.textSecondary,
+                        ),
+                        child: Text(
+                          product.status != 'active'
+                              ? 'Not available'
+                              : (!_connectivity.isConnected &&
+                                      !viewModel.hasExistingChat)
+                                  ? 'Offline - Cannot start chat'
+                                  : 'Chat with seller',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
