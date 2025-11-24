@@ -3,6 +3,37 @@ import '../models/models.dart';
 import '../theme/app_colors.dart';
 import 'offline_network_image.dart';
 
+// MICRO-OPTIMIZATION: Static color constants to avoid allocation on every build
+class _SimilarProductsColors {
+  // Colors for fire icon gradient
+  static final fireGradientColors = [
+    Colors.orange.shade400,
+    Colors.red.shade400,
+  ];
+
+  // Shadow and overlay colors (pre-calculated opacity)
+  static const fireShadowColor = Color(0x4DFF9800); // Colors.orange.withOpacity(0.3)
+  static const cardShadowColor = Color(0x14000000); // Colors.black.withOpacity(0.08)
+  static const imageOverlayColor = Color(0x4D000000); // Colors.black.withOpacity(0.3)
+  static const imageBackgroundColor = Color(0x1A9E9E9E); // Colors.grey.withOpacity(0.1)
+
+  // Cached badge colors
+  static final cachedBadgeBackground = Colors.orange.shade100;
+  static final cachedBadgeBorder = Colors.orange.shade300;
+  static final cachedBadgeText = Colors.orange.shade700;
+  static final cachedIconColor = Colors.orange.shade700;
+
+  // Subtitle color (pre-calculated opacity)
+  static final subtitleColor = AppColors.textPrimary.withOpacity(0.6);
+
+  // Price badge color (pre-calculated opacity)
+  static final priceBadgeBackground = AppColors.primaryColor.withOpacity(0.1);
+
+  // Shimmer colors for loading state
+  static final shimmerGrey1 = Colors.grey.shade300;
+  static final shimmerGrey2 = Colors.grey.shade200;
+}
+
 /// Widget that displays a section of similar hot products
 ///
 /// This widget shows products from the same category that are "hot"
@@ -54,19 +85,16 @@ class SimilarProductsSection extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Colors.orange.shade400,
-                        Colors.red.shade400,
-                      ],
+                      colors: _SimilarProductsColors.fireGradientColors,
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
+                    boxShadow: const [
                       BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
+                        color: _SimilarProductsColors.fireShadowColor,
                         blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        offset: Offset(0, 2),
                       ),
                     ],
                   ),
@@ -97,7 +125,7 @@ class SimilarProductsSection extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
-                          color: AppColors.textPrimary.withOpacity(0.6),
+                          color: _SimilarProductsColors.subtitleColor,
                         ),
                       ),
                     ],
@@ -111,10 +139,10 @@ class SimilarProductsSection extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade100,
+                      color: _SimilarProductsColors.cachedBadgeBackground,
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(
-                        color: Colors.orange.shade300,
+                        color: _SimilarProductsColors.cachedBadgeBorder,
                         width: 1,
                       ),
                     ),
@@ -124,7 +152,7 @@ class SimilarProductsSection extends StatelessWidget {
                         Icon(
                           Icons.wifi_off,
                           size: 12,
-                          color: Colors.orange.shade700,
+                          color: _SimilarProductsColors.cachedIconColor,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -132,7 +160,7 @@ class SimilarProductsSection extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Colors.orange.shade700,
+                            color: _SimilarProductsColors.cachedBadgeText,
                           ),
                         ),
                       ],
@@ -153,11 +181,14 @@ class SimilarProductsSection extends StatelessWidget {
                     itemCount: products.length,
                     itemBuilder: (context, index) {
                       final product = products[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: _SimilarProductCard(
-                          product: product,
-                          onTap: () => onProductTap(product),
+                      // MICRO-OPTIMIZATION: RepaintBoundary isolates repaints
+                      return RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: _SimilarProductCard(
+                            product: product,
+                            onTap: () => onProductTap(product),
+                          ),
                         ),
                       );
                     },
@@ -204,11 +235,12 @@ class _SimilarProductCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
+          boxShadow: const [
+            // MICRO-OPTIMIZATION: const BoxShadow with pre-calculated color
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: _SimilarProductsColors.cardShadowColor,
               blurRadius: 12,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -223,8 +255,9 @@ class _SimilarProductCard extends StatelessWidget {
               child: Container(
                 height: 140,
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
+                decoration: const BoxDecoration(
+                  // MICRO-OPTIMIZATION: const color
+                  color: _SimilarProductsColors.imageBackgroundColor,
                 ),
                 child: Stack(
                   fit: StackFit.expand,
@@ -242,13 +275,14 @@ class _SimilarProductCard extends StatelessWidget {
                       right: 0,
                       child: Container(
                         height: 60,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
+                          // MICRO-OPTIMIZATION: const gradient with pre-calculated colors
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black.withOpacity(0.3),
+                              _SimilarProductsColors.imageOverlayColor,
                             ],
                           ),
                         ),
@@ -286,7 +320,8 @@ class _SimilarProductCard extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryColor.withOpacity(0.1),
+                        // MICRO-OPTIMIZATION: pre-calculated color
+                        color: _SimilarProductsColors.priceBadgeBackground,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -336,26 +371,28 @@ class _LoadingProductCardState extends State<_LoadingProductCard>
 
   @override
   Widget build(BuildContext context) {
+    // MICRO-OPTIMIZATION: Extract static content as child to prevent rebuilds
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, child) {
+      child: _buildStaticSkeletonContent(),
+      builder: (context, staticContent) {
         return Container(
           width: 160,
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Color(0x0D000000), // black.withOpacity(0.05)
                 blurRadius: 8,
-                offset: const Offset(0, 2),
+                offset: Offset(0, 2),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image skeleton
+              // Image skeleton with animated shimmer
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(16),
@@ -368,62 +405,65 @@ class _LoadingProductCardState extends State<_LoadingProductCard>
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.grey.shade300,
-                        Colors.grey.shade200,
-                        Colors.grey.shade300,
+                        _SimilarProductsColors.shimmerGrey1,
+                        _SimilarProductsColors.shimmerGrey2,
+                        _SimilarProductsColors.shimmerGrey1,
                       ],
                       stops: [
-                        _controller.value - 0.3,
-                        _controller.value,
-                        _controller.value + 0.3,
-                      ].map((v) => v.clamp(0.0, 1.0)).toList(),
+                        (_controller.value - 0.3).clamp(0.0, 1.0),
+                        _controller.value.clamp(0.0, 1.0),
+                        (_controller.value + 0.3).clamp(0.0, 1.0),
+                      ],
                     ),
                   ),
                 ),
               ),
-              // Info skeleton
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title lines
-                      Container(
-                        height: 14,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 14,
-                        width: 100,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const Spacer(),
-                      // Price skeleton
-                      Container(
-                        height: 24,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // Static content (text placeholders) - reused without rebuilding
+              Expanded(child: staticContent!),
             ],
           ),
         );
       },
+    );
+  }
+
+  // MICRO-OPTIMIZATION: Build static skeleton elements once
+  Widget _buildStaticSkeletonContent() {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title lines
+          Container(
+            height: 14,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _SimilarProductsColors.shimmerGrey1,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            height: 14,
+            width: 100,
+            decoration: BoxDecoration(
+              color: _SimilarProductsColors.shimmerGrey1,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const Spacer(),
+          // Price skeleton
+          Container(
+            height: 24,
+            width: 60,
+            decoration: BoxDecoration(
+              color: _SimilarProductsColors.shimmerGrey1,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
