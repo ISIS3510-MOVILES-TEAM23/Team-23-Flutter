@@ -57,6 +57,12 @@ LruCacheService<String, List<Post>>
 - Storage: RAM
 ```
 
+**Referencias de código:**
+- `lib/services/lru_cache_service.dart:20-178` → Implementación completa del servicio
+- `lib/services/similar_products_service.dart:34-36` → Declaración del cache LRU
+- `lib/services/similar_products_service.dart:81-92` → Lectura del cache (get)
+- `lib/services/similar_products_service.dart:382-386` → Escritura al cache (put)
+
 **¿Por qué LRU?**
 - **Acceso ultra-rápido**: ~1ms vs ~50ms de Firestore
 - **Sin I/O de disco**: Ideal para navegación fluida entre productos
@@ -83,6 +89,18 @@ Hive Storage
   2. Product click events (raw)
   3. Sales data (raw)
 ```
+
+**Referencias de código:**
+- `lib/services/cache_service.dart:15` → TTL de 7 días (`postsCacheDuration`)
+- `lib/services/cache_service.dart:661-683` → `cacheSimilarProducts()` (escritura)
+- `lib/services/cache_service.dart:686-711` → `getCachedSimilarProducts()` (lectura)
+- `lib/services/cache_service.dart:714-732` → `cacheProductClickEvents()` (escritura)
+- `lib/services/cache_service.dart:735-759` → `getCachedProductClickEvents()` (lectura)
+- `lib/services/cache_service.dart:762-778` → `cacheSalesData()` (escritura)
+- `lib/services/cache_service.dart:781-805` → `getCachedSalesData()` (lectura)
+- `lib/services/similar_products_service.dart:102-214` → Uso en modo offline (cálculo de hotness)
+- `lib/services/similar_products_service.dart:270-321` → Cacheo de datos en modo online
+- `lib/services/similar_products_service.dart:388-397` → Persistencia de resultados
 
 **¿Por qué Hive para persistencia?**
 - **Offline-first**: Datos sobreviven restart de app
@@ -250,37 +268,6 @@ Con nuestro cache:
 
 ## Métricas y Logging
 
-### Sistema de Debug
-
-Implementamos logging detallado para monitoreo:
-
-```dart
-await _similarProductsService.getSimilarHotProducts(
-  categoryId: categoryId,
-  excludePostId: productId,
-  debug: true, // Enable detailed logs
-)
-```
-
-**Logs generados:**
-
-```
-[SimilarProducts] 🔥 Fetching similar hot products for category: categories/c2
-[SimilarProducts]    Excluding product: abc123
-[SimilarProducts] ❌ LRU CACHE MISS
-[SimilarProducts] 📂 Fetching posts from Firestore...
-[SimilarProducts] 📊 Found 16 products in category
-[SimilarProducts] 🔥 Calculating hotness scores...
-[SimilarProducts] 📊 Processed 533 click events
-[SimilarProducts] 📊 Processed 8 completed sales (from 45 total)
-[SimilarProducts] 🏆 Top similar products:
-[SimilarProducts]    - Botella de Agua Verde: 96.0 points
-[SimilarProducts]    - Adorno de ceramica: 16.0 points
-[SimilarProducts]    - Product C: 10.0 points
-[SimilarProducts] 💾 Cached 16 products for offline use
-[SimilarProducts] ⚡ TOTAL: 6 products in 995ms
-```
-
 ### Estadísticas de Cache
 
 ```dart
@@ -334,31 +321,6 @@ final stats = _similarProductsService.getCacheStats();
    - Banner se adapta automáticamente a diferentes dispositivos
 
 ---
-
-## Decisiones Técnicas Clave
-
-### 1. ¿Por qué NO usar índices compuestos en Firestore?
-
-**Problema:**
-```dart
-// Esto requiere índice compuesto:
-.where('status', isEqualTo: 'completed')
-.where('created_at', isGreaterThanOrEqualTo: since)
-```
-
-**Solución implementada:**
-```dart
-// Query simple sin índice:
-.orderBy('created_at', descending: true)
-.limit(1000)
-
-// Filtrado en cliente:
-for (final doc in salesSnapshot.docs) {
-  if (data['status'] != 'completed') continue;
-  if (createdAt.compareTo(since) < 0) continue;
-  // Process...
-}
-```
 
 **Razones:**
 - ✅ Sin dependencia de configuración Firestore
