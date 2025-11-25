@@ -320,6 +320,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     onProductTap: (product) {
                       context.push('/home/product/${product.id}');
                     },
+                    onSeeAllTap: viewModel.product != null
+                        ? () {
+                            // Navigate to hot products screen with category info
+                            final categoryId = viewModel.product!.categoryId;
+                            // Encode categoryId to handle special characters and slashes
+                            final encodedCategoryId = Uri.encodeComponent(categoryId);
+                            context.push(
+                              '/home/hot-products/$encodedCategoryId',
+                            );
+                          }
+                        : null,
                   ),
 
                   // Chat button (fixed at bottom)

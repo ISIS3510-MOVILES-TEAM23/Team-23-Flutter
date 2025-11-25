@@ -9,6 +9,7 @@ import 'screens/confirm_purchase_screen.dart';
 import 'screens/create_post_screen.dart';
 import 'screens/drafts_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/hot_category_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -44,6 +45,10 @@ final router = GoRouter(
     return null; // No redirect needed
   },
   routes: [
+    GoRoute(
+      path: '/',
+      redirect: (context, state) => '/login',
+    ),
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
@@ -94,6 +99,19 @@ final router = GoRouter(
                   builder: (context, state) => ProductDetailScreen(
                     productId: state.pathParameters['productId']!,
                   ),
+                ),
+                GoRoute(
+                  path: 'hot-products/:categoryId',
+                  builder: (context, state) {
+                    final extra = (state.extra as Map?) ?? {};
+                    // Decode the categoryId to handle special characters and slashes
+                    final encodedCategoryId = state.pathParameters['categoryId']!;
+                    final categoryId = Uri.decodeComponent(encodedCategoryId);
+                    return HotCategoryScreen(
+                      categoryId: categoryId,
+                      categoryName: extra['categoryName'] as String?,
+                    );
+                  },
                 ),
                 GoRoute(
                   path: 'notifications',
