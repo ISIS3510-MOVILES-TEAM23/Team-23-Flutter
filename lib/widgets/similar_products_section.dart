@@ -45,11 +45,13 @@ class _SimilarProductsColors {
 /// - Offline indicator when loaded from cache
 /// - Empty state when no similar products exist
 /// - Elegant design with fire icon and styled title
+/// - "See All" button to navigate to full list
 class SimilarProductsSection extends StatelessWidget {
   final List<Post> products;
   final bool isLoading;
   final bool isLoadedFromCache;
   final Function(Post) onProductTap;
+  final VoidCallback? onSeeAllTap;
 
   const SimilarProductsSection({
     super.key,
@@ -57,6 +59,7 @@ class SimilarProductsSection extends StatelessWidget {
     required this.isLoading,
     required this.isLoadedFromCache,
     required this.onProductTap,
+    this.onSeeAllTap,
   });
 
   @override
@@ -131,6 +134,39 @@ class SimilarProductsSection extends StatelessWidget {
                     ],
                   ),
                 ),
+                // See All button
+                if (onSeeAllTap != null && products.length >= 3)
+                  TextButton(
+                    onPressed: onSeeAllTap,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'See All',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryColor,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 12,
+                          color: AppColors.primaryColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: 8),
                 // Offline indicator
                 if (isLoadedFromCache)
                   Container(
