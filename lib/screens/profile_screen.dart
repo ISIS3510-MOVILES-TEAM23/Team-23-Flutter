@@ -811,6 +811,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 12),
 
+            // Purchases Button - Full Width
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    context.push('/profile/purchases');
+                  },
+                  icon: const Icon(Icons.shopping_cart_outlined, size: 20),
+                  label: const Text(
+                    'Purchases',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             // Drafts Button - Full Width (Scenario 8)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
