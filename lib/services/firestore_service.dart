@@ -825,4 +825,66 @@ class FirestoreService {
     print('is not working');
     return postsWithChats;
   }
+
+  /// Get user purchases (where user is the buyer) with full post and seller info
+  static Future<List<PostWithChat>> getUserPurchasesWithChats(String userId) async {
+    List<PostWithChat> purchases = [];
+    try {
+      debugPrint('[FirestoreService] 🛒 Getting purchases for user: $userId');
+      
+      // Get all sales where user is the buyer
+      final userRef = _db.collection('users').doc(userId);
+      final salesSnapshot = await _db
+          .collection('sales')
+          .where('buyer_ref', isEqualTo: userRef)
+          .orderBy('created_at', descending: true)
+          .get();
+
+      debugPrint('[FirestoreService] 📦 Found ${salesSnapshot.docs.length} purchases');
+
+      for (var saleDoc in salesSnapshot.docs) {
+        try {
+          final saleData = Map<String, dynamic>.from(saleDoc.data());
+          saleData['id'] = saleDoc.id;
+          saleData['_id'] = saleDoc.id;
+          final sale = Sale.fromJson(saleData);
+
+          // Get the post
+          final post = await FirestoreService.getPostById(sale.postId);
+          if (post == null) {
+            debugPrint('[FirestoreService] ⚠️ Post not found: ${sale.postId}');
+            continue;
+          }
+          
+          // Get the seller
+          final seller = await FirestoreService.getUserById(sale.sellerId);
+          
+          // Get or create chat
+          final chatId = await ChatService.getOrCreateChatByBuyerSellerProduct(
+            buyerId: userId,
+            sellerId: sale.sellerId,
+            productId: sale.postId,
+          );
+
+          purchases.add(PostWithChat(
+            post: post,
+            chatId: chatId,
+            buyer: seller, // In this context, it's actually the seller
+            sale: sale,
+          ));
+
+          debugPrint('[FirestoreService] ✅ Added purchase: ${post.title}');
+        } catch (e) {
+          debugPrint('[FirestoreService] ❌ Error processing purchase: $e');
+          continue;
+        }
+      }
+
+      debugPrint('[FirestoreService] ✅ Got ${purchases.length} purchases total');
+      return purchases;
+    } catch (e) {
+      debugPrint('[FirestoreService] ❌ Error getting purchases: $e');
+      return [];
+    }
+  }
 }

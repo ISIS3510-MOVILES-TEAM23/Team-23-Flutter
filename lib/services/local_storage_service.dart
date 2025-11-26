@@ -18,7 +18,9 @@ class LocalStorageService {
   static const String syncQueueBoxName = 'sync_queue'; // Managed by HiveService with typed Box<SyncQueueItem>
   static const String metadataBoxName = 'metadata';
   static const String draftsBoxName = 'drafts'; // Scenario 8
+  static const String feedbackDraftsBoxName = 'feedback_drafts'; // Feedback drafts
   static const String salesCacheBoxName = 'sales_cache'; // Scenario 12
+  static const String purchasesCacheBoxName = 'purchases_cache'; // Purchases LRU cache
 
   /// Initialize Hive database
   Future<void> initialize() async {
@@ -53,8 +55,14 @@ class LocalStorageService {
       if (!Hive.isBoxOpen(draftsBoxName)) {
         boxesToOpen.add(Hive.openBox(draftsBoxName));
       }
+      if (!Hive.isBoxOpen(feedbackDraftsBoxName)) {
+        boxesToOpen.add(Hive.openBox(feedbackDraftsBoxName));
+      }
       if (!Hive.isBoxOpen(salesCacheBoxName)) {
         boxesToOpen.add(Hive.openBox(salesCacheBoxName));
+      }
+      if (!Hive.isBoxOpen(purchasesCacheBoxName)) {
+        boxesToOpen.add(Hive.openBox(purchasesCacheBoxName));
       }
       
       if (boxesToOpen.isNotEmpty) {
@@ -193,7 +201,9 @@ class LocalStorageService {
         userBoxName,
         metadataBoxName,
         draftsBoxName, // Scenario 8
+        feedbackDraftsBoxName, // Feedback drafts
         salesCacheBoxName, // Scenario 12
+        purchasesCacheBoxName, // Purchases cache
       ];
       for (final boxName in boxNames) {
         try {

@@ -8,13 +8,16 @@ import 'screens/chat_screen.dart';
 import 'screens/confirm_purchase_screen.dart';
 import 'screens/create_post_screen.dart';
 import 'screens/drafts_screen.dart';
+import 'screens/feedback_form_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/hot_category_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/pending_feedback_screen.dart';
 import 'screens/product_detail_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/purchases_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/verification_screen.dart';
@@ -198,8 +201,16 @@ final router = GoRouter(
                   builder: (context, state) => const SalesScreen(),
                 ),
                 GoRoute(
+                  path: 'purchases',
+                  builder: (context, state) => const PurchasesScreen(),
+                ),
+                GoRoute(
                   path: 'drafts',
                   builder: (context, state) => const DraftsScreen(),
+                ),
+                GoRoute(
+                  path: 'pending-feedback',
+                  builder: (context, state) => const PendingFeedbackScreen(),
                 ),
               ],
             ),
