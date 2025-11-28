@@ -794,21 +794,21 @@ class FirestoreService {
     }
   }
 
+
   static Future<List<PostWithChat>> getUserPostsWithChats(String userId) async {
     List<PostWithChat> postsWithChats = [];
     try {
       final products = await FirestoreService.getUserPosts(userId);
       for (var post in products) {
-        print('Sales for post ${post.id}');
+        // Get sales for this product
         final sales = await FirestoreService.getSalesByPost(post.id);
         if (sales.isEmpty) continue;
+        
         for (var sale in sales) {
-          print('Sale: ${sale.id}');
           User buyer = await FirestoreService.getUserById(sale.buyerId);
-          print('Buyer: ${buyer.id}');
           String chatId = await ChatService.getOrCreateChatByBuyerSellerProduct(
               buyerId: buyer.id, sellerId: userId, productId: post.id);
-          print('Chat ID: $chatId');
+          
           postsWithChats.add(PostWithChat(
             post: post,
             chatId: chatId,
@@ -817,13 +817,11 @@ class FirestoreService {
           ));
         }
       }
-      print(postsWithChats);
-    } catch (e) {
-      print('Error fetching posts with chats: $e');
       return postsWithChats;
+    } catch (e) {
+      print('Error getting user posts with chats: $e');
+      return [];
     }
-    print('is not working');
-    return postsWithChats;
   }
 
   /// Get user purchases (where user is the buyer) with full post and seller info
@@ -887,4 +885,131 @@ class FirestoreService {
       return [];
     }
   }
+
+
+  // Comments
+  // ASYNC STRATEGY: Compute Isolation for Large Comment Lists
+  // When comment count exceeds threshold (50), parsing is offloaded to separate isolate
+  // to prevent UI jank and maintain smooth scrolling performance
+  static const int _commentComputeThreshold = 50;
+  
+  static Stream<List<Comment>> getComments(String productId) {
+    return _db
+        .collection('posts')
+        .doc(productId)
+        .collection('comments')
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .asyncMap((snapshot) async {
+      // ASYNC OPTIMIZATION: Use compute isolation for large comment lists
+      // This prevents UI thread blocking when parsing many comments
+      List<Comment> comments;
+      
+      if (snapshot.docs.length > _commentComputeThreshold) {
+        debugPrint('[FirestoreService] 🔄 Processing ${snapshot.docs.length} comments in isolate');
+        
+        // Prepare data for isolate (must be simple types)
+        final rawData = snapshot.docs.map((doc) {
+          final data = Map<String, dynamic>.from(doc.data());
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+        
+        // Offload parsing to separate isolate
+        comments = await compute(_parseCommentsInIsolate, rawData);
+      } else {
+        // For small lists, parse on main thread (faster due to no isolate overhead)
+        comments = snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return Comment.fromJson(data);
+        }).toList();
+      }
+      
+      // CACHE COMMENTS: Save to local storage for offline viewing
+      try {
+        final commentsJson = comments.map((c) => c.toJson()).toList();
+        await CacheService().cacheComments(productId, commentsJson);
+        debugPrint('[FirestoreService] 💾 Cached ${comments.length} comments for offline use');
+      } catch (e) {
+        debugPrint('[FirestoreService] ⚠️ Failed to cache comments: $e');
+      }
+      
+      return comments;
+    });
+  }
+
+  // ASYNC HELPER: Top-level function for isolate execution
+  // This runs in a separate isolate to avoid blocking the UI thread
+  static List<Comment> _parseCommentsInIsolate(List<Map<String, dynamic>> rawData) {
+    return rawData.map((data) => Comment.fromJson(data)).toList();
+  }
+
+  static Future<String?> addComment(Comment comment) async {
+    // ASYNC OPTIMIZATION: Use batch write for better performance
+    // This ensures atomic operation and better error handling
+    // RETURNS: Firestore document ID for sync tracking
+    try {
+      final batch = _db.batch();
+      
+      final commentRef = _db
+          .collection('posts')
+          .doc(comment.productId)
+          .collection('comments')
+          .doc(); // Generate ID
+      
+      batch.set(commentRef, {
+        'product_id': comment.productId,
+        'user_id': comment.userId,
+        'user_name': comment.userName,
+        'content': comment.content,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+      
+      await batch.commit();
+      
+      debugPrint('[FirestoreService] ✅ Comment added with ID: ${commentRef.id}');
+      return commentRef.id; // Return the generated ID
+    } catch (e) {
+      debugPrint('[FirestoreService] ❌ Error adding comment: $e');
+      return null;
+    }
+  }
+
+  /// Sync a pending comment to Firestore
+  static Future<String?> syncPendingComment(Comment comment) async {
+    try {
+      debugPrint('[FirestoreService] 🔄 Syncing pending comment: ${comment.localId}');
+      
+      // Add comment to Firestore
+      final firestoreId = await addComment(comment);
+      
+      if (firestoreId != null) {
+        debugPrint('[FirestoreService] ✅ Pending comment synced: ${comment.localId} -> $firestoreId');
+      }
+      
+      return firestoreId;
+    } catch (e) {
+      debugPrint('[FirestoreService] ❌ Error syncing pending comment: $e');
+      return null;
+    }
+  }
+
+  /// Sync all pending comments for a product
+  static Future<int> syncAllPendingComments(List<Comment> pendingComments) async {
+    int successCount = 0;
+    
+    debugPrint('[FirestoreService] 🔄 Syncing ${pendingComments.length} pending comments...');
+    
+    for (final comment in pendingComments) {
+      final firestoreId = await syncPendingComment(comment);
+      if (firestoreId != null) {
+        successCount++;
+      }
+    }
+    
+    debugPrint('[FirestoreService] ✅ Synced $successCount/${pendingComments.length} comments');
+    return successCount;
+  }
 }
+
