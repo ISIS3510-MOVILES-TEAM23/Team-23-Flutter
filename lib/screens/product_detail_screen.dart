@@ -311,6 +311,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ),
                   ),
 
+
+
+                  // Comments button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          context.push('/home/comments/${product.id}');
+                        },
+                        icon: const Icon(Icons.comment),
+                        label: const Text('See Comments'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: BorderSide(color: AppColors.primaryColor),
+                          foregroundColor: AppColors.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ),
+
                   // Similar products section
                   SimilarProductsSection(
                     products: viewModel.similarProducts,

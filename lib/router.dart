@@ -22,6 +22,7 @@ import 'screens/sales_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/verification_screen.dart';
 import 'screens/wish_list_screen.dart';
+import 'screens/comments_screen.dart';
 import 'widgets/main_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -123,6 +124,12 @@ final router = GoRouter(
                 GoRoute(
                   path: 'wishlist',
                   builder: (context, state) => const WishListScreen(),
+                ),
+                GoRoute(
+                  path: 'comments/:productId',
+                  builder: (context, state) => CommentsScreen(
+                    productId: state.pathParameters['productId']!,
+                  ),
                 ),
               ],
             ),

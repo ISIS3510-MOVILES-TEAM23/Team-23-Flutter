@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../models/models.dart';
+import '../utils/lru_cache.dart';
 import 'local_storage_service.dart';
 
 /// Service to manage caching strategy with TTL (Time To Live)
@@ -16,6 +18,9 @@ class CacheService {
   static const Duration categoriesCacheDuration = Duration(days: 30);
   static const Duration userCacheDuration = Duration(days: 7);
   static const Duration messagesCacheDuration = Duration(days: 30);
+
+  // LRU cache for comments (in-memory, max 20 products)
+  final LruCache<String, List<Comment>> _commentsLruCache = LruCache<String, List<Comment>>(20);
 
   /// Save posts to cache with timestamp
   Future<void> cachePosts(List<Map<String, dynamic>> posts) async {
@@ -804,7 +809,161 @@ class CacheService {
     }
   }
 
+  /// Cache comments for a product (Scenario: Comments Local Storage)
+  Future<void> cacheComments(
+      String productId, List<Map<String, dynamic>> comments) async {
+    try {
+      debugPrint(
+          '[Cache] 💾 Saving ${comments.length} comments for product $productId...');
+      final cacheData = {
+        'data': comments,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.messagesBoxName,
+        'comments_$productId',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached ${comments.length} comments');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache comments: $e');
+    }
+  }
+
+  /// Get cached comments for a product (Scenario: Comments Local Storage)
+  Future<List<Map<String, dynamic>>?> getCachedComments(
+      String productId) async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.messagesBoxName,
+        'comments_$productId',
+      );
+
+      if (cached == null) {
+        debugPrint('[Cache] ⚠️ No cached comments for product $productId');
+        return null;
+      }
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      final timestamp = DateTime.parse(cacheData['timestamp'] as String);
+
+      // Use same TTL as posts (7 days)
+      if (DateTime.now().difference(timestamp) > postsCacheDuration) {
+        debugPrint('[Cache] ⏰ Comments cache expired');
+        return null;
+      }
+
+      final comments = (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      debugPrint('[Cache] ✅ Retrieved ${comments.length} cached comments');
+      return comments;
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get cached comments: $e');
+      return null;
+    }
+  }
+
+  /// Cache a pending comment (offline comment waiting to sync)
+  Future<void> cachePendingComment(
+      String productId, Map<String, dynamic> comment) async {
+    try {
+      // Get existing pending comments
+      final pending = await getPendingComments(productId);
+      pending.add(comment);
+
+      final cacheData = {
+        'data': pending,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      await _storage.save(
+        LocalStorageService.messagesBoxName,
+        'pending_comments_$productId',
+        jsonEncode(cacheData),
+      );
+      debugPrint('[Cache] ✓ Cached pending comment for product $productId');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to cache pending comment: $e');
+    }
+  }
+
+  /// Get pending comments for a product
+  Future<List<Map<String, dynamic>>> getPendingComments(
+      String productId) async {
+    try {
+      final cached = _storage.get(
+        LocalStorageService.messagesBoxName,
+        'pending_comments_$productId',
+      );
+
+      if (cached == null) {
+        return [];
+      }
+
+      final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+      return (cacheData['data'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get pending comments: $e');
+      return [];
+    }
+  }
+
+  /// Remove a pending comment after successful sync
+  Future<void> removePendingComment(String productId, String localId) async {
+    try {
+      final pending = await getPendingComments(productId);
+      pending.removeWhere((comment) => comment['local_id'] == localId);
+
+      if (pending.isEmpty) {
+        // Remove the key entirely if no pending comments left
+        await _storage.delete(
+          LocalStorageService.messagesBoxName,
+          'pending_comments_$productId',
+        );
+      } else {
+        final cacheData = {
+          'data': pending,
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+        await _storage.save(
+          LocalStorageService.messagesBoxName,
+          'pending_comments_$productId',
+          jsonEncode(cacheData),
+        );
+      }
+      debugPrint('[Cache] ✓ Removed pending comment: $localId');
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to remove pending comment: $e');
+    }
+  }
+
+  /// Get all pending comments across all products (for background sync)
+  Future<List<Map<String, dynamic>>> getAllPendingComments() async {
+    try {
+      final allPending = <Map<String, dynamic>>[];
+      final allKeys = _storage.getAllKeys(LocalStorageService.messagesBoxName);
+
+      for (final key in allKeys) {
+        if (key.startsWith('pending_comments_')) {
+          final productId = key.replaceFirst('pending_comments_', '');
+          final pending = await getPendingComments(productId);
+          allPending.addAll(pending);
+        }
+      }
+
+      debugPrint('[Cache] 📋 Found ${allPending.length} total pending comments');
+      return allPending;
+    } catch (e) {
+      debugPrint('[Cache] ✗ Failed to get all pending comments: $e');
+      return [];
+    }
+  }
+
   /// Clear all caches
+
   Future<void> clearAllCaches() async {
     try {
       await _storage.clearBox(LocalStorageService.postsBoxName);
@@ -815,5 +974,26 @@ class CacheService {
     } catch (e) {
       debugPrint('[Cache] ✗ Failed to clear caches: $e');
     }
+  }
+
+  /// Get comments from LRU cache (in-memory)
+  List<Comment>? getCommentsFromLru(String productId) {
+    final comments = _commentsLruCache.get(productId);
+    if (comments != null) {
+      debugPrint('[Cache] ✅ Retrieved ${comments.length} comments from LRU cache for product $productId');
+    }
+    return comments;
+  }
+
+  /// Put comments into LRU cache (in-memory)
+  void putCommentsInLru(String productId, List<Comment> comments) {
+    _commentsLruCache.put(productId, comments);
+    debugPrint('[Cache] 💾 Cached ${comments.length} comments in LRU for product $productId');
+  }
+
+  /// Remove comments from LRU cache (for invalidation)
+  void removeCommentsFromLru(String productId) {
+    _commentsLruCache.remove(productId);
+    debugPrint('[Cache] 🗑️ Removed comments from LRU cache for product $productId');
   }
 }

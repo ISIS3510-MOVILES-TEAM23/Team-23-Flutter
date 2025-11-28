@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class User {
   final String id; // maps from _id
   final String name;
@@ -22,14 +24,41 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Handle contactPreferences which can be either String or List
+    final dynamic contactPrefRaw = json['contact_preferences'];
+    final String contactPreferences;
+    if (contactPrefRaw is List) {
+      // If it's a list, join elements with comma or take first element
+      contactPreferences = contactPrefRaw.isNotEmpty 
+          ? contactPrefRaw.map((e) => e.toString()).join(', ')
+          : '';
+    } else if (contactPrefRaw is String) {
+      contactPreferences = contactPrefRaw;
+    } else {
+      contactPreferences = contactPrefRaw?.toString() ?? '';
+    }
+
+    // Handle createdAt which can be Timestamp, DateTime, or String
+    final dynamic createdAtRaw = json['created_at'];
+    DateTime createdAt;
+    if (createdAtRaw is Timestamp) {
+      createdAt = createdAtRaw.toDate();
+    } else if (createdAtRaw is DateTime) {
+      createdAt = createdAtRaw;
+    } else if (createdAtRaw is String) {
+      createdAt = DateTime.tryParse(createdAtRaw) ?? DateTime.now();
+    } else {
+      createdAt = DateTime.now();
+    }
+
     return User(
       id: json['_id'] ?? json['id'],
       name: json['name'],
-      contactPreferences: json['contact_preferences'],
+      contactPreferences: contactPreferences,
       email: json['email'],
       role: json['role'],
       major: json['major'],
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: createdAt,
       numberOfReviews: json['number_of_reviews'] as int?,
       score: (json['score'] as num?)?.toDouble(),
     );
